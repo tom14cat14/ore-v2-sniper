@@ -10,10 +10,19 @@ pub struct OreConfig {
     pub ore_program_id: String,
 
     // Strategy parameters
-    pub min_ev_percentage: f64,           // Minimum expected value (default: 15%)
+    pub min_ev_percentage: f64,           // Minimum expected value (default: 0% = any +EV)
     pub snipe_window_seconds: u64,        // Window before reset to snipe (default: 3s)
     pub reset_interval_seconds: u64,      // Ore grid reset interval (default: 60s)
     pub ore_price_sol: f64,               // Fallback Ore price in SOL
+
+    // Multi-cell portfolio strategy
+    pub min_cells_per_round: u32,         // Minimum cells to buy (default: 1)
+    pub max_cells_per_round: u32,         // Maximum cells to buy (default: 25 = full board)
+    pub target_cells_per_round: u32,      // Target cells at medium bankroll (default: 5)
+    pub max_cost_per_round_sol: f64,      // Max total cost per round (default: 0.02 SOL)
+    pub adaptive_scaling: bool,           // Enable adaptive cell count based on bankroll
+    pub scale_threshold_low_sol: f64,     // Bankroll to scale to target_cells (default: 0.1 SOL)
+    pub scale_threshold_high_sol: f64,    // Bankroll to scale to max_cells (default: 1.0 SOL)
 
     // Safety limits
     pub max_claim_cost_sol: f64,          // Maximum cost per claim (default: 0.05 SOL)
@@ -59,7 +68,7 @@ impl OreConfig {
 
             // Strategy parameters
             min_ev_percentage: env::var("MIN_EV_PERCENTAGE")
-                .unwrap_or_else(|_| "15.0".to_string())
+                .unwrap_or_else(|_| "0.0".to_string())
                 .parse()?,
             snipe_window_seconds: env::var("SNIPE_WINDOW_SECONDS")
                 .unwrap_or_else(|_| "3".to_string())
@@ -69,6 +78,28 @@ impl OreConfig {
                 .parse()?,
             ore_price_sol: env::var("ORE_PRICE_SOL")
                 .unwrap_or_else(|_| "0.00072".to_string())
+                .parse()?,
+
+            // Multi-cell portfolio strategy
+            min_cells_per_round: env::var("MIN_CELLS_PER_ROUND")
+                .unwrap_or_else(|_| "1".to_string())
+                .parse()?,
+            max_cells_per_round: env::var("MAX_CELLS_PER_ROUND")
+                .unwrap_or_else(|_| "25".to_string())
+                .parse()?,
+            target_cells_per_round: env::var("TARGET_CELLS_PER_ROUND")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()?,
+            max_cost_per_round_sol: env::var("MAX_COST_PER_ROUND_SOL")
+                .unwrap_or_else(|_| "0.02".to_string())
+                .parse()?,
+            adaptive_scaling: env::var("ADAPTIVE_SCALING")
+                .unwrap_or_else(|_| "true".to_string()) == "true",
+            scale_threshold_low_sol: env::var("SCALE_THRESHOLD_LOW_SOL")
+                .unwrap_or_else(|_| "0.1".to_string())
+                .parse()?,
+            scale_threshold_high_sol: env::var("SCALE_THRESHOLD_HIGH_SOL")
+                .unwrap_or_else(|_| "1.0".to_string())
                 .parse()?,
 
             // Safety limits
@@ -133,8 +164,8 @@ impl OreConfig {
             anyhow::bail!("Must enable either ENABLE_REAL_TRADING or PAPER_TRADING");
         }
 
-        if self.min_ev_percentage <= 0.0 {
-            anyhow::bail!("MIN_EV_PERCENTAGE must be positive");
+        if self.min_ev_percentage < 0.0 {
+            anyhow::bail!("MIN_EV_PERCENTAGE must be non-negative");
         }
 
         if self.max_claim_cost_sol <= 0.0 {
@@ -151,6 +182,26 @@ impl OreConfig {
     /// Get EV threshold as decimal (15% -> 0.15)
     pub fn min_ev_decimal(&self) -> f64 {
         self.min_ev_percentage / 100.0
+    }
+
+    /// Calculate adaptive cell count based on current bankroll
+    ///
+    /// Returns:
+    /// - min_cells if adaptive_scaling disabled or bankroll < low threshold
+    /// - target_cells if low threshold <= bankroll < high threshold
+    /// - max_cells if bankroll >= high threshold
+    pub fn calculate_cell_count(&self, wallet_balance_sol: f64) -> u32 {
+        if !self.adaptive_scaling {
+            return self.min_cells_per_round;
+        }
+
+        if wallet_balance_sol < self.scale_threshold_low_sol {
+            self.min_cells_per_round
+        } else if wallet_balance_sol < self.scale_threshold_high_sol {
+            self.target_cells_per_round
+        } else {
+            self.max_cells_per_round
+        }
     }
 }
 

@@ -29,7 +29,7 @@ use solana_sdk::signature::{Keypair, Signer};
 
 // Ore V2 constants
 const BOARD_SIZE: usize = 25;           // 25-cell board
-const SNIPE_WINDOW_SECS: f64 = 2.8;     // Start sniping 2.8s before reset
+const SNIPE_WINDOW_SECS: f64 = 2.0;     // Start sniping 2s before reset (late = fewer competitors per cell!)
 const EPOCH_DURATION_SECS: u64 = 60;    // Board resets every 60 seconds
 #[allow(dead_code)]
 const MAX_COMPETITORS: usize = 3;        // Max competitors to track
@@ -51,16 +51,21 @@ pub struct OreBoard {
     pub reset_slot: u64,
     pub current_slot: u64,
     pub round_id: u64,  // Current round ID for claiming rewards
+    pub pot_lamports: u64,  // Real pot size from Round account (total_deployed)
+    pub motherlode_ore: u64,  // Motherlode jackpot in lamports (divide by 1e9 for ORE)
+    pub ore_price_sol: f64,  // ORE price in SOL (from Jupiter)
 }
 
 /// Individual cell on the Ore board
 #[derive(Clone, Default, Debug)]
 pub struct Cell {
     pub id: u8,
-    pub cost_lamports: u64,      // Dynamic SOL cost to claim
-    pub difficulty: u64,          // Mining difficulty
+    pub cost_lamports: u64,      // Dynamic SOL cost to claim (minimum to deploy)
+    pub deployed_lamports: u64,  // Total SOL deployed to this cell (from Round account)
+    pub difficulty: u64,          // Number of deployers on this cell
     pub claimed: bool,            // Claimed on-chain
     pub claimed_in_mempool: bool, // Claimed in mempool (avoid)
+    pub deployers: Vec<String>,   // Track all deployers (for pot splitting calculation)
 }
 
 // Global state with atomic updates
@@ -69,10 +74,12 @@ static BOARD: once_cell::sync::Lazy<ArcSwap<OreBoard>> =
 static RECENT_BLOCKHASH: once_cell::sync::Lazy<RwLock<solana_sdk::hash::Hash>> =
     once_cell::sync::Lazy::new(|| RwLock::new(solana_sdk::hash::Hash::default()));
 
+// Multi-cell S_j ranking approach - old threshold sniping removed
+
 /// Ore board sniper
 pub struct OreBoardSniper {
     config: OreConfig,
-    ore_price_sol: f64,
+    price_fetcher: crate::jupiter_price::OrePriceFetcher,
     stats: SnipeStats,
     shredstream: Option<OreShredStreamProcessor>,
     jito_client: Option<OreJitoClient>,
@@ -136,9 +143,13 @@ impl OreBoardSniper {
         dashboard.load_events(); // Load existing events on startup
         info!("📊 Dashboard writer initialized");
 
+        // Initialize ORE price fetcher
+        let price_fetcher = crate::jupiter_price::OrePriceFetcher::new();
+        info!("💰 ORE price fetcher initialized (Jupiter API)");
+
         Ok(Self {
             config,
-            ore_price_sol: 0.0008, // ~$300 at 375k SOL price - update from Jupiter
+            price_fetcher,
             stats: SnipeStats::default(),
             shredstream,
             jito_client,
@@ -186,6 +197,18 @@ impl OreBoardSniper {
             let board = BOARD.load();
             let time_left = self.time_until_reset(&board, current_slot);
 
+            // Log timing every 30 seconds
+            static LAST_TIMING_LOG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now_secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+            let last_log = LAST_TIMING_LOG.load(std::sync::atomic::Ordering::Relaxed);
+            if now_secs - last_log >= 30 {
+                let available = board.cells.iter().filter(|c| !c.claimed && !c.claimed_in_mempool).count();
+                let pot: u64 = board.cells.iter().filter(|c| c.claimed || c.claimed_in_mempool).map(|c| c.cost_lamports).sum();
+                info!("⏱️  {:.1}s until snipe window | {} cells free | pot: {:.6} SOL",
+                      time_left, available, pot as f64 / 1e9);
+                LAST_TIMING_LOG.store(now_secs, std::sync::atomic::Ordering::Relaxed);
+            }
+
             // Only act in snipe window
             if time_left > SNIPE_WINDOW_SECS {
                 debug!("⏱️  {:.1}s until snipe window", time_left);
@@ -193,14 +216,48 @@ impl OreBoardSniper {
                 continue;
             }
 
-            // Find best snipe target
-            if let Some(target) = self.find_snipe_target(&board, time_left) {
-                let ev = self.calculate_ev(&target, time_left);
-                info!("🎯 SNIPE TARGET: Cell {} | Cost: {:.6} SOL | EV: {:.1}%",
-                    target.id, target.cost_lamports as f64 / 1e9, ev * 100.0);
+            // IN SNIPE WINDOW! (<2s = final pot known + max time bonus)
+            info!("🎯 FINAL SNIPE WINDOW: {:.2}s left (final pot + 1.3x time bonus)", time_left);
 
-                // Execute snipe
-                self.execute_snipe(&target, time_left).await?;
+            // === MULTI-CELL PORTFOLIO STRATEGY ===
+            // Get wallet balance
+            let wallet_balance = match self.check_wallet_balance().await {
+                Ok(balance) => balance,
+                Err(e) => {
+                    warn!("Failed to check wallet balance: {}, using 0.0", e);
+                    0.0
+                }
+            };
+
+            // Calculate how many cells to buy (adaptive scaling)
+            let target_cell_count = self.config.calculate_cell_count(wallet_balance);
+
+            // Find best N cells (ranked by S_j)
+            let targets = self.find_snipe_targets(&board, time_left, target_cell_count as usize, wallet_balance);
+
+            if !targets.is_empty() {
+                let total_cost: f64 = targets.iter().map(|c| c.cost_lamports as f64 / 1e9).sum();
+                info!("🎯 MULTI-CELL PORTFOLIO: {} cells selected | Total: {:.6} SOL | Balance: {:.6} SOL",
+                    targets.len(), total_cost, wallet_balance);
+
+                // Log each target
+                for (idx, cell) in targets.iter().enumerate() {
+                    let ev = self.calculate_ev(&board, cell, time_left);
+                    let s_j = self.calculate_s_j(&board, cell);
+                    info!("   #{}: Cell {} | Cost: {:.6} SOL | Deployers: {} | EV: {:.1}% | S_j: {:.2}",
+                        idx + 1, cell.id, cell.cost_lamports as f64 / 1e9, cell.difficulty, ev * 100.0, s_j);
+                }
+
+                // Execute multi-cell snipe (JITO bundle with all cells)
+                self.execute_multi_snipe(&targets, time_left).await?;
+            } else {
+                let min_deployers = board.cells.iter().map(|c| c.difficulty).min().unwrap_or(0);
+                let max_deployers = board.cells.iter().map(|c| c.difficulty).max().unwrap_or(0);
+                let min_cost = board.cells.iter().map(|c| c.cost_lamports).min().unwrap_or(0);
+                let max_cost = board.cells.iter().map(|c| c.cost_lamports).max().unwrap_or(0);
+                info!("⚠️  No opportunity: pot {:.6} SOL, deployers {}-{}, cost {:.6}-{:.6} SOL, need EV > {:.1}%, Motherlode check failed or no +EV cells",
+                      board.pot_lamports as f64 / 1e9, min_deployers, max_deployers,
+                      min_cost as f64 / 1e9, max_cost as f64 / 1e9, self.config.min_ev_percentage);
             }
 
             // Log P&L summary every 5 minutes
@@ -235,56 +292,143 @@ impl OreBoardSniper {
         });
     }
 
-    /// Find best snipe target (lowest cost with EV > threshold)
-    fn find_snipe_target(&self, board: &OreBoard, time_left: f64) -> Option<Cell> {
-        board.cells.iter()
-            .filter(|c| !c.claimed && !c.claimed_in_mempool) // Not claimed anywhere
+    /// Find best snipe target - cell with LOWEST total deployed SOL
+    /// (to maximize our % share of that cell)
+    /// Find multiple snipe targets (multi-cell portfolio strategy)
+    ///
+    /// Returns top N cells ranked by S_j score (drain potential per cost)
+    /// where N is determined by adaptive scaling based on bankroll
+    fn find_snipe_targets(&self, board: &OreBoard, time_left: f64, num_cells: usize, wallet_balance_sol: f64) -> Vec<Cell> {
+        const MAX_CELL_COST: u64 = 15_000_000;  // Skip cells > 0.015 SOL (too expensive!)
+        const MIN_MOTHERLODE_ORE: f64 = 125.0;  // Only snipe if Motherlode >= 125 ORE
+
+        // === Motherlode Gating ===
+        let motherlode_ore = board.motherlode_ore as f64 / 1e11;
+        if motherlode_ore < MIN_MOTHERLODE_ORE {
+            return Vec::new();
+        }
+
+        // === Find +EV Cells ===
+        let mut positive_ev_cells: Vec<(f64, Cell)> = board.cells.iter()
+            .filter(|c| c.cost_lamports <= MAX_CELL_COST)
             .filter(|c| {
-                let ev = self.calculate_ev(c, time_left);
+                let ev = self.calculate_ev(board, c, time_left);
                 ev >= self.config.min_ev_decimal()
             })
-            .min_by_key(|c| c.cost_lamports) // Cheapest first
-            .cloned()
+            .map(|c| {
+                let s_j = self.calculate_s_j(board, c);
+                (s_j, c.clone())
+            })
+            .collect();
+
+        if positive_ev_cells.is_empty() {
+            return Vec::new();
+        }
+
+        // === S_j Ranking ===
+        // Sort by S_j descending (highest S_j first)
+        positive_ev_cells.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        // === Cost Safety Check ===
+        // Take top N cells but ensure total cost <= max_cost_per_round
+        let max_total_cost = self.config.max_cost_per_round_sol;
+        let mut selected_cells = Vec::new();
+        let mut total_cost = 0.0;
+
+        for (_s_j, cell) in positive_ev_cells.iter().take(num_cells) {
+            let cell_cost = cell.cost_lamports as f64 / 1e9;
+
+            // Check if adding this cell would exceed max cost or wallet balance
+            if total_cost + cell_cost > max_total_cost {
+                break;
+            }
+            if total_cost + cell_cost > wallet_balance_sol - self.config.min_wallet_balance_sol {
+                break;
+            }
+
+            selected_cells.push(cell.clone());
+            total_cost += cell_cost;
+        }
+
+        selected_cells
     }
 
-    /// Calculate expected value for a cell (LOTTERY SYSTEM)
+    /// Legacy single-cell method (for backwards compatibility)
+    #[allow(dead_code)]
+    fn find_snipe_target(&self, board: &OreBoard, time_left: f64) -> Option<Cell> {
+        self.find_snipe_targets(board, time_left, 1, f64::MAX).into_iter().next()
+    }
+
+    /// Calculate expected value for a cell (LOTTERY SYSTEM WITH POT SPLITTING)
     ///
-    /// In Ore V2, this is a lottery:
-    /// - You bet SOL on squares
-    /// - 1/25 chance of winning (random square selected)
-    /// - If you win: get your bet back + ALL other bets + ORE reward
-    /// - If you lose: lose your bet
+    /// REAL MECHANICS (from live testing):
+    /// - Deploy any amount of SOL to a cell
+    /// - Your payout = (Your Deploy / Cell Total) × Winnings
+    /// - Winnings = Pot × 0.85 (15% vaulted as "gravy")
+    /// - Win probability = 1/25 (random cell selected)
+    /// - Ignore ORE rewards (bonus if you get it)
     ///
-    /// EV = (Probability × Win Amount) - (Probability × Loss Amount)
-    ///    = (1/25 × Total Pot) - (24/25 × Bet)
-    fn calculate_ev(&self, cell: &Cell, _time_left: f64) -> f64 {
-        let cost_sol = cell.cost_lamports as f64 / 1_000_000_000.0;
+    /// EV = (Win Prob × My Share) - My Deploy
+    fn calculate_ev(&self, board: &OreBoard, cell: &Cell, _time_left: f64) -> f64 {
+        // === Parameters ===
+        let total_pot = board.pot_lamports as f64 / 1e9;  // Total pot (SOL)
+        let cell_deployed = cell.deployed_lamports as f64 / 1e9;  // Cell deployed (SOL)
+        let n_j = cell.difficulty as f64;  // Number of deployers on cell
+        let p_j = cell.cost_lamports as f64 / 1e9;  // Cell price (SOL)
+        let motherlode = board.motherlode_ore as f64 / 1e11;  // Motherlode (ORE)
+        let ore_price = board.ore_price_sol;  // ORE price (SOL/ORE)
 
-        // Get current board state
-        let board = BOARD.load();
+        // Constants
+        let rake = 0.10;  // 10% vaulted
+        let adj = 0.95;   // Variance adjustment
+        let fees = 0.00005;  // Jito + priority fees (SOL)
 
-        // Calculate total pot (sum of all deployed SOL)
-        let total_pot: u64 = board.cells.iter()
-            .filter(|c| c.claimed || c.claimed_in_mempool)
-            .map(|c| c.cost_lamports)
-            .sum();
+        // === SOL Component ===
+        // If this cell wins (1/25 prob), SOL winnings are split proportionally
+        // Our share = (p_j / (cell_deployed + p_j)) × (total_pot × 0.85)  [proportional split]
+        // Simplified: drain losers' SOL → (total_pot - cell_deployed - rake×total_pot) / (n_j+1)
+        let cell_total_after = cell_deployed + p_j;
+        let my_fraction = if cell_total_after > 0.0 { p_j / cell_total_after } else { 0.0 };
+        let winnings = total_pot * (1.0 - rake);
+        let my_sol_if_win = my_fraction * winnings;
 
-        let pot_sol = total_pot as f64 / 1_000_000_000.0;
+        // === ORE Component ===
+        // If this cell wins (1/25), ONE random deployer gets 1 ORE + Motherlode chance
+        // Probability I get ORE = (1/25) × (1/(n_j+1))
+        // Expected ORE = 1 + motherlode/625 (includes 1/625 Motherlode trigger chance)
+        // Expected ORE value = ore_price × (1 + motherlode/625) / (25 × (n_j+1))
+        let ore_expected_value = if n_j + 1.0 > 0.0 {
+            ore_price * (1.0 + motherlode / 625.0) / (25.0 * (n_j + 1.0))
+        } else {
+            0.0
+        };
 
-        // Probability of winning = 1/25 (random square)
+        // === Total EV ===
+        // Win prob = 1/25, apply variance adj, subtract cost and fees
         let win_prob = 1.0 / 25.0;
-        let lose_prob = 24.0 / 25.0;
+        let expected_return = win_prob * (my_sol_if_win + ore_expected_value * 25.0) * adj;
+        let ev_sol = expected_return - p_j - fees;
 
-        // Win amount = pot + your bet back + estimated ORE reward
-        let ore_reward_sol = 100.0 * self.ore_price_sol; // Estimate: 100 ORE per win
-        let win_amount = pot_sol + cost_sol + ore_reward_sol;
+        // Return EV as percentage
+        if p_j > 0.0 {
+            ev_sol / p_j
+        } else {
+            0.0
+        }
+    }
 
-        // Expected value calculation
-        let expected_return = (win_prob * win_amount) - (lose_prob * cost_sol);
+    /// Calculate S_j ranking: measures "drain potential per cost"
+    /// S_j = (total_pot - cell_deployed) / [(n_j+1) × p_j]
+    /// Higher S_j = better opportunity (more SOL to drain from losers, lower cost/competition)
+    fn calculate_s_j(&self, board: &OreBoard, cell: &Cell) -> f64 {
+        let total_pot = board.pot_lamports as f64 / 1e9;  // Total pot (SOL)
+        let cell_deployed = cell.deployed_lamports as f64 / 1e9;  // Cell deployed (SOL)
+        let n_j = cell.difficulty as f64;  // Number of deployers
+        let p_j = cell.cost_lamports as f64 / 1e9;  // Cell price (SOL)
 
-        // EV as percentage of bet
-        if cost_sol > 0.0 {
-            (expected_return - cost_sol) / cost_sol
+        let denominator = (n_j + 1.0) * p_j;
+        if denominator > 0.0 {
+            (total_pot - cell_deployed) / denominator
         } else {
             0.0
         }
@@ -296,14 +440,16 @@ impl OreBoardSniper {
         (slots_left * SLOT_DURATION_MS / 1000.0).max(0.0)
     }
 
-    /// Execute snipe - Build Deploy instruction and submit via Jito
+    /// Legacy single-cell execution (replaced by execute_multi_snipe)
+    #[allow(dead_code)]
     async fn execute_snipe(&mut self, cell: &Cell, time_left: f64) -> Result<()> {
         let start = Instant::now();
 
         if self.config.paper_trading {
             info!("📝 PAPER TRADE: Would deploy to cell {}", cell.id);
+            let board = BOARD.load();
             let cost = cell.cost_lamports as f64 / 1e9;
-            let ev = self.calculate_ev(cell, time_left);
+            let ev = self.calculate_ev(&board, cell, time_left);
             info!("   Cost: {:.6} SOL | EV: {:.1}% | Time left: {:.1}s", cost, ev * 100.0, time_left);
 
             self.stats.total_snipes += 1;
@@ -342,9 +488,12 @@ impl OreBoardSniper {
 
         info!("✅ Deploy instruction built in {:?}", start.elapsed());
 
-        // Calculate dynamic Jito tip based on EV
-        let ev = self.calculate_ev(cell, time_left);
+        // JITO ONLY: At 2s window, speed is critical (no time for RPC)
+        let board = BOARD.load();
+        let ev = self.calculate_ev(&board, cell, time_left);
         let bet_sol = cell.cost_lamports as f64 / 1_000_000_000.0;
+
+        // Calculate dynamic Jito tip based on EV
         let tip_lamports = jito_client.calculate_dynamic_tip(ev, bet_sol).await?;
 
         info!("💰 Jito tip: {:.6} SOL (EV: {:.1}%)",
@@ -366,18 +515,105 @@ impl OreBoardSniper {
         // Submit bundle via Jito
         let bundle_id = jito_client.submit_bundle(bundle).await?;
 
-        info!("✅ Bundle submitted: {} | Cell {} | Cost: {:.6} SOL | Tip: {:.6} SOL",
+        info!("✅ Bundle submitted: {} | Cell {} | Cost: {:.6} SOL | Tip: {:.6} SOL | Time: {:.1}s",
             bundle_id,
             cell.id,
             bet_sol,
-            tip_lamports as f64 / 1e9
+            tip_lamports as f64 / 1e9,
+            time_left
         );
 
         // Update stats
         self.stats.total_snipes += 1;
+        self.stats.successful_snipes += 1;
         self.stats.total_spent_sol += bet_sol;
         self.stats.total_tips_paid += tip_lamports as f64 / 1e9;
-        self.stats.successful_snipes += 1;
+
+        Ok(())
+    }
+
+    /// Execute multi-cell snipe (portfolio strategy)
+    ///
+    /// Deploys to multiple cells in a single transaction
+    /// Uses regular RPC (not JITO) - 2s window is sufficient
+    async fn execute_multi_snipe(&mut self, cells: &[Cell], time_left: f64) -> Result<()> {
+        let start = Instant::now();
+        let total_cost: f64 = cells.iter().map(|c| c.cost_lamports as f64 / 1e9).sum();
+
+        if self.config.paper_trading {
+            info!("📝 PAPER TRADE: Would deploy to {} cells (total: {:.6} SOL)", cells.len(), total_cost);
+            for (idx, cell) in cells.iter().enumerate() {
+                let board = BOARD.load();
+                let ev = self.calculate_ev(&board, cell, time_left);
+                info!("   #{}: Cell {} | Cost: {:.6} SOL | EV: {:.1}%",
+                    idx + 1, cell.id, cell.cost_lamports as f64 / 1e9, ev * 100.0);
+            }
+
+            self.stats.total_snipes += cells.len() as u64;
+            self.stats.successful_snipes += cells.len() as u64;
+            self.stats.total_spent_sol += total_cost;
+            return Ok(());
+        }
+
+        // LIVE TRADING
+        info!("🚀 LIVE: Building multi-cell Deploy for {} cells (total: {:.6} SOL)", cells.len(), total_cost);
+
+        // Get wallet
+        let wallet = self.wallet.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Wallet not loaded"))?;
+        let authority = wallet.pubkey();
+
+        // Get current round ID
+        let board = BOARD.load();
+        let round_id = (board.current_slot / 150) as u64;
+
+        // Build squares array with ALL selected cells set to true
+        let mut squares = [false; 25];
+        let mut total_amount = 0u64;
+
+        for cell in cells {
+            squares[cell.id as usize] = true;
+            total_amount += cell.cost_lamports;
+        }
+
+        // Build Deploy instruction for multiple cells
+        let deploy_ix = build_deploy_instruction(
+            authority,
+            authority,
+            total_amount,  // Total amount for all cells
+            round_id,
+            squares,       // Multiple cells set to true
+        )?;
+
+        info!("✅ Multi-cell Deploy instruction built in {:?}", start.elapsed());
+
+        // Build and send transaction via RPC (simpler than JITO for 2s window)
+        use solana_sdk::transaction::Transaction;
+        use solana_client::rpc_client::RpcClient;
+
+        let rpc = RpcClient::new(self.config.rpc_url.clone());
+
+        // Get recent blockhash
+        let blockhash = rpc.get_latest_blockhash()?;
+
+        // Build transaction
+        let tx = Transaction::new_signed_with_payer(
+            &[deploy_ix],
+            Some(&authority),
+            &[wallet],
+            blockhash,
+        );
+
+        // Submit transaction
+        let signature = rpc.send_transaction(&tx)?;
+
+        info!("✅ Multi-cell transaction submitted: {} | {} cells | Total: {:.6} SOL | Time: {:.1}s",
+            signature, cells.len(), total_cost, time_left);
+
+        // Update stats
+        self.stats.total_snipes += cells.len() as u64;
+        self.stats.successful_snipes += cells.len() as u64;
+        self.stats.total_spent_sol += total_cost;
 
         Ok(())
     }
@@ -482,7 +718,61 @@ impl OreBoardSniper {
         );
     }
 
-    /// Wait for new slot from ShredStream and process Ore events
+    /// Legacy EV-based sniping (replaced by S_j ranking multi-cell approach)
+    #[allow(dead_code)]
+    async fn try_ev_snipe(&self, current_pot: u64, time_left: f64, use_jito: bool) -> Result<()> {
+        let board = BOARD.load();
+
+        // Find cheapest unclaimed cell
+        let cheapest_cell = board.cells.iter()
+            .filter(|c| !c.claimed && !c.claimed_in_mempool)
+            .min_by_key(|c| c.cost_lamports);
+
+        if let Some(cell) = cheapest_cell {
+            let ev = self.calculate_ev(&board, cell, time_left);
+
+            if ev >= self.config.min_ev_decimal() {
+                let submission_method = if use_jito { "JITO (fast)" } else { "RPC (free)" };
+                info!("🎯 EV SNIPE: Cell {} | Cost: {:.6} SOL | Pot: {:.6} SOL | EV: {:.1}% | Via: {}",
+                      cell.id, cell.cost_lamports as f64 / 1e9,
+                      current_pot as f64 / 1e9, ev * 100.0, submission_method);
+
+                // Execute snipe
+                if self.config.paper_trading {
+                    info!("📝 PAPER TRADE: Would EV-snipe cell {} for {:.6} SOL via {}",
+                          cell.id, cell.cost_lamports as f64 / 1e9, submission_method);
+                } else {
+                    if use_jito {
+                        info!("⚡ Using JITO for speed (time-critical: {:.1}s left)", time_left);
+                        // TODO: Implement JITO submission (needs refactoring execute_snipe)
+                    } else {
+                        info!("💸 Using free RPC submission ({:.1}s left - no rush)", time_left);
+                        // TODO: Implement regular RPC submission
+                    }
+                    warn!("⚠️ Live trading not yet enabled - run in paper mode");
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Legacy clone helper (no longer needed with multi-cell approach)
+    #[allow(dead_code)]
+    fn clone_for_snipe(&self) -> Self {
+        Self {
+            config: self.config.clone(),
+            price_fetcher: crate::jupiter_price::OrePriceFetcher::new(), // Fresh fetcher for clone
+            stats: self.stats.clone(),
+            shredstream: None, // Don't clone ShredStream (not needed for snipes)
+            jito_client: self.jito_client.clone(),
+            wallet: self.wallet.as_ref().map(|w| w.insecure_clone()),
+            rpc_client: None, // Don't clone RPC (not needed for snipes)
+            dashboard: self.dashboard.clone(),
+            entries_processed: self.entries_processed,
+        }
+    }
+
     async fn wait_for_new_slot(&mut self) -> Result<u64> {
         if let Some(ref mut shredstream) = self.shredstream {
             // Process ShredStream events
@@ -497,7 +787,7 @@ impl OreBoardSniper {
                         debug!("📡 Slot update: {}", slot);
                     }
                     OreEvent::BoardReset { slot } => {
-                        info!("🔄 Board reset at slot {}", slot);
+                        info!("🔄 Board reset at slot {} - New round starting!", slot);
 
                         // Add dashboard event
                         self.dashboard.add_event(DashboardEvent {
@@ -513,17 +803,18 @@ impl OreBoardSniper {
                         let old_round_id = board.round_id;
                         board.reset_slot = slot;
                         board.round_id += 1;
-                        // Clear all claims
+                        // Clear all claims and deployers
                         for cell in &mut board.cells {
                             cell.claimed = false;
                             cell.claimed_in_mempool = false;
+                            cell.deployers.clear();  // Reset deployer count for new round
                         }
 
                         // **CRITICAL: Fetch real board state from RPC**
                         if let Some(ref rpc_client) = self.rpc_client {
-                            match rpc_client.update_board_state(&mut board).await {
+                            match rpc_client.update_board_state(&mut board, &mut self.price_fetcher).await {
                                 Ok(_) => {
-                                    info!("✅ Real board state loaded from RPC");
+                                    info!("✅ Real board state loaded from RPC (pot, Motherlode, ORE price)");
                                 }
                                 Err(e) => {
                                     warn!("⚠️ Failed to fetch board state: {} - using defaults", e);
@@ -591,6 +882,21 @@ impl OreBoardSniper {
                     }
                     OreEvent::CellDeployed { cell_id, authority } => {
                         info!("✅ Cell {} deployed by {}", cell_id, &authority[..8]);
+
+                        // TRACK DEPLOYERS: Count how many people are on this cell for pot splitting
+                        // (Real pot is fetched from RPC Round account, not tracked locally)
+                        {
+                            let mut board = BOARD.load().as_ref().clone();
+                            if (cell_id as usize) < BOARD_SIZE {
+                                board.cells[cell_id as usize].deployers.push(authority.clone());
+                                board.cells[cell_id as usize].claimed = true;
+                            }
+                            BOARD.store(Arc::new(board));
+                        }
+
+                        // FINAL-WINDOW STRATEGY: Wait until <2s to know true EV
+                        // Early EV is meaningless - pot still growing
+                        // At <2s we know: final pot size, final deployer counts, max time bonus (1.3x)
 
                         // Add dashboard event
                         self.dashboard.add_event(DashboardEvent {
