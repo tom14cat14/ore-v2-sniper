@@ -65,20 +65,10 @@ impl OreShredStreamProcessor {
 
         info!("✅ ShredStream connection established");
 
-        // Subscribe ONLY to Ore V2 program
-        let ore_program_ids = vec![
-            ORE_PROGRAM_ID.to_string(), // Ore V2 program
-        ];
+        info!("📡 Subscribing to ALL entries (will filter for Ore V2 client-side)");
 
-        info!("📡 Subscribing to Ore V2 program for Deploy/BoardReset events");
-
-        // Create subscription request
-        let request = ShredstreamClient::create_entries_request_for_accounts(
-            ore_program_ids.clone(),          // Ore program ID
-            vec![],                           // owner addresses (empty)
-            vec![],                           // transaction accounts (empty)
-            Some(CommitmentLevel::Processed), // commitment level
-        );
+        // Subscribe to ALL entries - filter for Ore V2 client-side
+        let request = ShredstreamClient::create_empty_entries_request();
 
         let mut stream = client.subscribe_entries(request).await?;
         info!("📡 Subscribed to ShredStream for Ore V2 events");
