@@ -6,6 +6,7 @@ pub mod ore_instructions;
 pub mod ore_shredstream;
 pub mod ore_rpc;
 pub mod ore_jito;
+pub mod dashboard;
 
 // Re-exports for convenience
 pub use config::{OreConfig, DailyStats};

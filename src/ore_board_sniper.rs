@@ -24,6 +24,7 @@ use crate::ore_instructions::{
 };
 use crate::ore_shredstream::{OreShredStreamProcessor, OreEvent};
 use crate::ore_jito::OreJitoClient;
+use crate::dashboard::{DashboardWriter, DashboardEvent, get_timestamp};
 use solana_sdk::signature::{Keypair, Signer};
 
 // Ore V2 constants
@@ -77,6 +78,8 @@ pub struct OreBoardSniper {
     jito_client: Option<OreJitoClient>,
     wallet: Option<Keypair>,
     rpc_client: Option<crate::ore_rpc::OreRpcClient>,
+    dashboard: DashboardWriter,
+    entries_processed: u64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -128,6 +131,11 @@ impl OreBoardSniper {
         let rpc_client = Some(crate::ore_rpc::OreRpcClient::new(config.rpc_url.clone()));
         info!("📡 RPC client initialized: {}", config.rpc_url);
 
+        // Initialize dashboard writer
+        let mut dashboard = DashboardWriter::new();
+        dashboard.load_events(); // Load existing events on startup
+        info!("📊 Dashboard writer initialized");
+
         Ok(Self {
             config,
             ore_price_sol: 0.0008, // ~$300 at 375k SOL price - update from Jupiter
@@ -136,6 +144,8 @@ impl OreBoardSniper {
             jito_client,
             wallet,
             rpc_client,
+            dashboard,
+            entries_processed: 0,
         })
     }
 
@@ -202,6 +212,9 @@ impl OreBoardSniper {
                 self.log_pnl_summary();
                 last_pnl_log = std::time::Instant::now();
             }
+
+            // Update dashboard status every 2 seconds
+            self.update_dashboard_status().await;
 
             // Small sleep to prevent tight loop
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -427,6 +440,48 @@ impl OreBoardSniper {
         info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
+    /// Update dashboard status (write to /tmp/ore_bot_status.json)
+    async fn update_dashboard_status(&mut self) {
+        let board = BOARD.load();
+
+        // Calculate pot size
+        let total_pot: u64 = board.cells.iter()
+            .filter(|c| c.claimed || c.claimed_in_mempool)
+            .map(|c| c.cost_lamports)
+            .sum();
+
+        // Get wallet address
+        let wallet_address = if let Some(wallet) = &self.wallet {
+            wallet.pubkey().to_string()
+        } else {
+            "Paper Trading".to_string()
+        };
+
+        // ShredStream connection status
+        let shredstream_connected = self.shredstream.is_some();
+
+        // Calculate latencies (stub for now - can be calculated from actual metrics)
+        let shredstream_latency_ms = if shredstream_connected {
+            Some(0.25) // Stub - measure actual latency in production
+        } else {
+            None
+        };
+
+        let rpc_latency_ms = Some(60.0); // Stub - measure actual RPC latency
+
+        self.dashboard.write_status(
+            &board,
+            &self.stats,
+            self.config.paper_trading,
+            &wallet_address,
+            shredstream_latency_ms,
+            rpc_latency_ms,
+            self.entries_processed,
+            shredstream_connected,
+            total_pot,
+        );
+    }
+
     /// Wait for new slot from ShredStream and process Ore events
     async fn wait_for_new_slot(&mut self) -> Result<u64> {
         if let Some(ref mut shredstream) = self.shredstream {
@@ -435,12 +490,24 @@ impl OreBoardSniper {
 
             // Handle Ore events
             for ore_event in event.events {
+                self.entries_processed += 1; // Track total events processed
+
                 match ore_event {
                     OreEvent::SlotUpdate { slot } => {
                         debug!("📡 Slot update: {}", slot);
                     }
                     OreEvent::BoardReset { slot } => {
                         info!("🔄 Board reset at slot {}", slot);
+
+                        // Add dashboard event
+                        self.dashboard.add_event(DashboardEvent {
+                            event_type: "BoardReset".to_string(),
+                            slot: Some(slot),
+                            timestamp: get_timestamp(),
+                            cell_id: None,
+                            authority: None,
+                        });
+
                         // Update board reset slot and increment round ID
                         let mut board = BOARD.load().as_ref().clone();
                         let old_round_id = board.round_id;
@@ -524,6 +591,16 @@ impl OreBoardSniper {
                     }
                     OreEvent::CellDeployed { cell_id, authority } => {
                         info!("✅ Cell {} deployed by {}", cell_id, &authority[..8]);
+
+                        // Add dashboard event
+                        self.dashboard.add_event(DashboardEvent {
+                            event_type: "CellDeployed".to_string(),
+                            slot: Some(BOARD.load().current_slot),
+                            timestamp: get_timestamp(),
+                            cell_id: Some(cell_id),
+                            authority: Some(authority.clone()),
+                        });
+
                         mark_mempool_deploy(cell_id);
                     }
                 }
