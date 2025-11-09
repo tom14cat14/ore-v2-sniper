@@ -32,3 +32,6 @@ Thumbs.db
 *.bak
 *.backup
 *.tmp
+
+# Ore ShredStream Service (conflicts with bot's direct connection)
+ore_shredstream_service/

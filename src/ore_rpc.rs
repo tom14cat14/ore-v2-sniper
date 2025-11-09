@@ -1,29 +1,29 @@
 // ore_rpc.rs — RPC client for fetching Ore V2 board state
-// Queries Board and Round accounts to get real-time cell costs
+// Queries Board and Round accounts to get real-time cell costs and pot size
 
 use anyhow::{Result, anyhow};
 use solana_client::rpc_client::RpcClient;
-use tracing::info;
+use solana_sdk::pubkey::Pubkey;
+use tracing::{info, debug};
 
-use crate::ore_instructions::{get_board_address, get_round_address};
-use crate::OreBoard;
+use crate::ore_instructions::{BOARD, ROUND, ORE_PROGRAM_ID};
 
-/// Simplified Board struct (matches Ore program)
+/// Board account from Ore V2 program (24 bytes total after discriminator)
 #[derive(Debug, Clone)]
 pub struct BoardAccount {
-    pub round_id: u64,
-    pub start_slot: u64,
-    pub end_slot: u64,
+    pub round_id: u64,      // Current round number
+    pub start_slot: u64,    // Round start slot
+    pub end_slot: u64,      // Round end slot (when reset happens)
 }
 
-/// Simplified Round struct (matches Ore program)
+/// Round account from Ore V2 program (contains pot and cell costs)
 #[derive(Debug, Clone)]
 pub struct RoundAccount {
     pub id: u64,
-    pub deployed: [u64; 25],  // SOL deployed per square
-    pub count: [u64; 25],      // Number of miners per square
-    pub total_deployed: u64,
-    pub expires_at: u64,
+    pub deployed: [u64; 25],     // SOL deployed per square (cell cost = min to claim)
+    pub count: [u64; 25],        // Number of miners per square
+    pub total_deployed: u64,     // Total pot size
+    pub total_winnings: u64,     // Total winnings for round
 }
 
 /// RPC client for Ore V2 state
@@ -40,26 +40,28 @@ impl OreRpcClient {
 
     /// Fetch current board state from RPC
     pub async fn fetch_board(&self) -> Result<BoardAccount> {
-        let board_address = get_board_address()?;
+        // Get Board PDA
+        let ore_program = ORE_PROGRAM_ID.parse::<Pubkey>()?;
+        let (board_pda, _bump) = Pubkey::find_program_address(&[BOARD], &ore_program);
+
+        debug!("📡 Fetching Board PDA: {}", board_pda);
 
         // Get account data
-        let account = self.rpc.get_account(&board_address)
+        let account = self.rpc.get_account(&board_pda)
             .map_err(|e| anyhow!("Failed to fetch Board account: {}", e))?;
 
-        // Parse account data
-        // In production, you'd deserialize using borsh or bincode
-        // For now, use simplified parsing
-
-        if account.data.len() < 24 {
-            return Err(anyhow!("Board account data too small"));
+        // Parse Board account (8 byte discriminator + 24 bytes data)
+        if account.data.len() < 32 {
+            return Err(anyhow!("Board account data too small: {} bytes", account.data.len()));
         }
 
-        // Simple parsing (assuming first 24 bytes are round_id, start_slot, end_slot)
-        let round_id = u64::from_le_bytes(account.data[0..8].try_into()?);
-        let start_slot = u64::from_le_bytes(account.data[8..16].try_into()?);
-        let end_slot = u64::from_le_bytes(account.data[16..24].try_into()?);
+        // Skip 8-byte discriminator, then parse 3 u64 fields
+        let round_id = u64::from_le_bytes(account.data[8..16].try_into()?);
+        let start_slot = u64::from_le_bytes(account.data[16..24].try_into()?);
+        let end_slot = u64::from_le_bytes(account.data[24..32].try_into()?);
 
-        info!("📊 Board fetched: round {} | slots {}-{}", round_id, start_slot, end_slot);
+        info!("📊 Board: round {} | reset at slot {} (slots {}-{})",
+              round_id, end_slot, start_slot, end_slot);
 
         Ok(BoardAccount {
             round_id,
@@ -70,43 +72,80 @@ impl OreRpcClient {
 
     /// Fetch current round state from RPC
     pub async fn fetch_round(&self, round_id: u64) -> Result<RoundAccount> {
-        let round_address = get_round_address(round_id)?;
+        // Get Round PDA
+        let ore_program = ORE_PROGRAM_ID.parse::<Pubkey>()?;
+        let round_id_bytes = round_id.to_le_bytes();
+        let (round_pda, _bump) = Pubkey::find_program_address(
+            &[ROUND, &round_id_bytes],
+            &ore_program
+        );
+
+        debug!("📡 Fetching Round PDA: {} (round_id={})", round_pda, round_id);
 
         // Get account data
-        let account = self.rpc.get_account(&round_address)
+        let account = self.rpc.get_account(&round_pda)
             .map_err(|e| anyhow!("Failed to fetch Round account: {}", e))?;
 
-        // Parse account data
-        // In production, you'd deserialize using the actual Round struct
-        // For now, use simplified parsing
+        // Parse Round account structure:
+        // 8 bytes: discriminator
+        // 8 bytes: id
+        // 200 bytes: deployed[25] (25 * 8)
+        // 32 bytes: slot_hash
+        // 200 bytes: count[25] (25 * 8)
+        // ... then motherlode, rent_payer, top_miner, rewards, totals
 
-        if account.data.len() < 8 {
-            return Err(anyhow!("Round account data too small"));
+        if account.data.len() < 8 + 8 + 200 + 32 + 200 + 8 + 8 + 32 + 32 + 8 + 8 + 8 + 8 {
+            return Err(anyhow!("Round account data too small: {} bytes", account.data.len()));
         }
 
-        // Parse round data (simplified)
-        let id = u64::from_le_bytes(account.data[0..8].try_into()?);
+        let mut offset = 8; // Skip discriminator
 
-        // TODO: Parse deployed array (25 u64s starting at offset 8)
-        // TODO: Parse count array (25 u64s after deployed)
-        // For now, return defaults
+        // Parse id
+        let id = u64::from_le_bytes(account.data[offset..offset+8].try_into()?);
+        offset += 8;
 
-        let deployed = [0u64; 25];
-        let count = [0u64; 25];
+        // Parse deployed array (25 u64s)
+        let mut deployed = [0u64; 25];
+        for i in 0..25 {
+            deployed[i] = u64::from_le_bytes(account.data[offset..offset+8].try_into()?);
+            offset += 8;
+        }
+        offset += 32; // Skip slot_hash
 
-        info!("📊 Round {} fetched", id);
+        // Parse count array (25 u64s)
+        let mut count = [0u64; 25];
+        for i in 0..25 {
+            count[i] = u64::from_le_bytes(account.data[offset..offset+8].try_into()?);
+            offset += 8;
+        }
+
+        // Skip expires_at, motherlode, rent_payer, top_miner, top_miner_reward
+        offset += 8 + 8 + 32 + 32 + 8;
+
+        // Parse total_deployed
+        let total_deployed = u64::from_le_bytes(account.data[offset..offset+8].try_into()?);
+        offset += 8;
+        offset += 8; // Skip total_vaulted
+
+        // Parse total_winnings
+        let total_winnings = u64::from_le_bytes(account.data[offset..offset+8].try_into()?);
+
+        info!("📊 Round {}: pot={:.6} SOL, deployed cells={}/25",
+              id,
+              total_deployed as f64 / 1e9,
+              deployed.iter().filter(|&&x| x > 0).count());
 
         Ok(RoundAccount {
             id,
             deployed,
             count,
-            total_deployed: 0,
-            expires_at: 0,
+            total_deployed,
+            total_winnings,
         })
     }
 
-    /// Fetch complete board state and update OreBoard
-    pub async fn update_board_state(&self, board: &mut OreBoard) -> Result<()> {
+    /// Fetch complete board state and update OreBoard with real data
+    pub async fn update_board_state(&self, board: &mut crate::OreBoard) -> Result<()> {
         // Fetch board account
         let board_account = self.fetch_board().await?;
 
@@ -119,17 +158,23 @@ impl OreRpcClient {
         // Update cell costs from round deployed amounts
         for (i, cell) in board.cells.iter_mut().enumerate() {
             cell.id = i as u8;
-            // Cost is minimum deployment amount (could be dynamic based on round rules)
-            // For now, use a fixed cost or the current deployed amount
+
+            // Cell cost = amount already deployed (this is what you need to match/exceed)
+            // If cell is unclaimed, use a min cost (typically 0.001-0.01 SOL)
             cell.cost_lamports = if round_account.deployed[i] > 0 {
                 round_account.deployed[i]
             } else {
-                5_000_000 // Default: 0.005 SOL
+                1_000_000 // Default minimum: 0.001 SOL for unclaimed cells
             };
-            cell.difficulty = round_account.count[i]; // Use miner count as "difficulty"
+
+            cell.claimed = round_account.deployed[i] > 0;
+            cell.difficulty = round_account.count[i]; // Number of miners on this cell
         }
 
-        info!("✅ Board state updated from RPC (round {})", board_account.round_id);
+        info!("✅ Board updated: round {}, pot={:.6} SOL, {}/25 cells claimed",
+              board_account.round_id,
+              round_account.total_deployed as f64 / 1e9,
+              round_account.deployed.iter().filter(|&&x| x > 0).count());
 
         Ok(())
     }

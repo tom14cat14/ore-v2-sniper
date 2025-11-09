@@ -76,6 +76,7 @@ pub struct OreBoardSniper {
     shredstream: Option<OreShredStreamProcessor>,
     jito_client: Option<OreJitoClient>,
     wallet: Option<Keypair>,
+    rpc_client: Option<crate::ore_rpc::OreRpcClient>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -123,6 +124,10 @@ impl OreBoardSniper {
             None
         };
 
+        // Initialize RPC client for board state fetching
+        let rpc_client = Some(crate::ore_rpc::OreRpcClient::new(config.rpc_url.clone()));
+        info!("📡 RPC client initialized: {}", config.rpc_url);
+
         Ok(Self {
             config,
             ore_price_sol: 0.0008, // ~$300 at 375k SOL price - update from Jupiter
@@ -130,6 +135,7 @@ impl OreBoardSniper {
             shredstream,
             jito_client,
             wallet,
+            rpc_client,
         })
     }
 
@@ -445,6 +451,19 @@ impl OreBoardSniper {
                             cell.claimed = false;
                             cell.claimed_in_mempool = false;
                         }
+
+                        // **CRITICAL: Fetch real board state from RPC**
+                        if let Some(ref rpc_client) = self.rpc_client {
+                            match rpc_client.update_board_state(&mut board).await {
+                                Ok(_) => {
+                                    info!("✅ Real board state loaded from RPC");
+                                }
+                                Err(e) => {
+                                    warn!("⚠️ Failed to fetch board state: {} - using defaults", e);
+                                }
+                            }
+                        }
+
                         BOARD.store(Arc::new(board));
 
                         // Clone wallet and jito BEFORE spawn to avoid lifetime issues
