@@ -19,6 +19,7 @@ pub struct DashboardStatus {
     pub paper_trading: bool,
     pub round_id: u64,
     pub pot_size: f64,  // in SOL
+    pub motherlode_ore: f64,  // in ORE (Motherlode accumulation)
     pub reset_slot: u64,
     pub current_slot: u64,
     pub cells_claimed: usize,
@@ -70,6 +71,7 @@ pub struct DashboardEvents {
 }
 
 /// Dashboard writer
+#[derive(Clone)]
 pub struct DashboardWriter {
     events: Vec<DashboardEvent>,
 }
@@ -93,6 +95,7 @@ impl DashboardWriter {
         entries_processed: u64,
         shredstream_connected: bool,
         pot_size_lamports: u64,
+        motherlode_ore: f64,
     ) {
         let cells_claimed = board.cells.iter().filter(|c| c.claimed).count();
 
@@ -101,6 +104,7 @@ impl DashboardWriter {
             paper_trading,
             round_id: board.round_id,
             pot_size: pot_size_lamports as f64 / 1e9,
+            motherlode_ore,
             reset_slot: board.reset_slot,
             current_slot: board.current_slot,
             cells_claimed,

@@ -299,8 +299,8 @@ impl OreBoardSniper {
     /// Returns top N cells ranked by S_j score (drain potential per cost)
     /// where N is determined by adaptive scaling based on bankroll
     fn find_snipe_targets(&self, board: &OreBoard, time_left: f64, num_cells: usize, wallet_balance_sol: f64) -> Vec<Cell> {
-        const MAX_CELL_COST: u64 = 15_000_000;  // Skip cells > 0.015 SOL (too expensive!)
-        const MIN_MOTHERLODE_ORE: f64 = 125.0;  // Only snipe if Motherlode >= 125 ORE
+        const MAX_CELL_COST: u64 = 5_000_000;  // Max 0.005 SOL per cell (lower risk, smaller pot share)
+        const MIN_MOTHERLODE_ORE: f64 = 125.0;  // Only play when Motherlode >= 125 ORE
 
         // === Motherlode Gating ===
         let motherlode_ore = board.motherlode_ore as f64 / 1e11;
@@ -705,6 +705,9 @@ impl OreBoardSniper {
 
         let rpc_latency_ms = Some(60.0); // Stub - measure actual RPC latency
 
+        // Get Motherlode amount (in ORE)
+        let motherlode_ore = board.motherlode_ore as f64 / 1e11;
+
         self.dashboard.write_status(
             &board,
             &self.stats,
@@ -715,6 +718,7 @@ impl OreBoardSniper {
             self.entries_processed,
             shredstream_connected,
             total_pot,
+            motherlode_ore,
         );
     }
 
