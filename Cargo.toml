@@ -33,6 +33,7 @@ dotenvy = "0.15"
 # Solana dependencies
 solana-sdk = "2.1"
 solana-client = "2.1"         # RPC client
+solana-account-decoder = "2.1"  # Account decoder for UiAccountData
 solana-stream-sdk = "0.5.1"   # ShredStream gRPC client
 solana-entry = "2.1"          # Entry deserialization
 bs58 = "0.5"

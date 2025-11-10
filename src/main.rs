@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
     print_config_summary(&config);
 
     // Create board sniper
-    let mut sniper = OreBoardSniper::new(config)?;
+    let mut sniper = OreBoardSniper::new(config).await?;
 
     info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     info!("🚀 Starting Ore Board Sniper...");

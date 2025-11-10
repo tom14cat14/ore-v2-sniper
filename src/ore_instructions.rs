@@ -94,9 +94,12 @@ pub fn build_deploy_instruction(
     let (round_address, _) =
         Pubkey::find_program_address(&[ROUND, &round_id.to_le_bytes()], &ore_program_id);
 
-    // Entropy VAR address (from reset.rs)
-    // This is a placeholder - in reality, we'd get this from the board account
-    let entropy_var_address = Pubkey::default();
+    // Entropy VAR address - derived using entropy API's var_pda function
+    // entropy_api::state::var_pda(board_address, 0)
+    let (entropy_var_address, _) = Pubkey::find_program_address(
+        &[b"var", &board_address.to_bytes(), &0u64.to_le_bytes()],
+        &entropy_program_id,
+    );
 
     // Build instruction data
     let data = DeployData {

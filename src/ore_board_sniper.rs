@@ -31,8 +31,8 @@ use solana_sdk::{
 // Ore V2 constants
 const BOARD_SIZE: usize = 25;           // 25-cell board
 const SNIPE_WINDOW_SECS: f64 = 2.0;     // Start sniping 2s before reset (late = fewer competitors per cell!)
-const FORCE_TEST_EXECUTION: bool = true; // 🔥 ENABLED FOR FORCE EXECUTION TEST - RE-ENABLE SAFETY CHECKS AFTER TESTING!
-const EXECUTE_ONCE_AND_EXIT: bool = true;  // 🔥 TESTING: Execute one snipe then exit
+const FORCE_TEST_EXECUTION: bool = true; // 🔥 TESTING ENTROPY VAR FIX
+const EXECUTE_ONCE_AND_EXIT: bool = true;  // Execute one buy then exit
 const EPOCH_DURATION_SECS: u64 = 60;    // Board resets every 60 seconds
 #[allow(dead_code)]
 const MAX_COMPETITORS: usize = 3;        // Max competitors to track
@@ -126,7 +126,9 @@ impl OreBoardSniper {
         // Load wallet if real trading enabled
         let wallet = if config.enable_real_trading {
             info!("🔑 Loading wallet from private key");
-            Some(load_wallet(&config.wallet_private_key)?)
+            let kp = load_wallet(&config.wallet_private_key)?;
+            info!("✅ Wallet loaded: {}", kp.pubkey());
+            Some(kp)
         } else {
             info!("📝 Paper trading mode - no wallet loaded");
             None
@@ -216,7 +218,7 @@ impl OreBoardSniper {
             if last_rpc_refresh.elapsed().as_secs() >= 5 {
                 if let Some(ref rpc) = self.rpc_client {
                     let mut board = BOARD.load().as_ref().clone();
-                    match rpc.update_board_state(&mut board, &mut self.price_fetcher).await {
+                    match rpc.update_board_state(&mut board).await {
                         Ok(()) => {
                             BOARD.store(Arc::new(board));
                             debug!("✅ RPC board refresh: round {}, pot={:.6} SOL",
@@ -692,7 +694,6 @@ impl OreBoardSniper {
             total_amount,  // Total amount for all cells
             round_id,
             squares,       // Multiple cells set to true
-            current_board.entropy_var, // Entropy VAR from Board account
         )?;
 
         info!("✅ Multi-cell Deploy instruction built in {:?}", start.elapsed());
@@ -928,7 +929,7 @@ impl OreBoardSniper {
 
                         // **CRITICAL: Fetch real board state from RPC**
                         if let Some(ref rpc_client) = self.rpc_client {
-                            match rpc_client.update_board_state(&mut board, &mut self.price_fetcher).await {
+                            match rpc_client.update_board_state(&mut board).await {
                                 Ok(_) => {
                                     info!("✅ Real board state loaded from RPC (pot, Motherlode, ORE price)");
                                 }

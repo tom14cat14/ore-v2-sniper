@@ -26,6 +26,12 @@ pub struct RoundAccount {
     pub total_winnings: u64,     // Total winnings for round
 }
 
+/// Treasury account from Ore V2 program (contains Motherlode)
+#[derive(Debug, Clone)]
+pub struct TreasuryAccount {
+    pub motherlode: u64,         // Current Motherlode in ORE tokens
+}
+
 /// RPC client for Ore V2 state
 pub struct OreRpcClient {
     rpc: RpcClient,
