@@ -45,6 +45,10 @@ pub struct OreConfig {
     pub paper_trading: bool,
     pub enable_real_trading: bool,
 
+    // Testing/Debug flags
+    pub force_test_mode: bool,            // Force test execution bypassing EV checks (default: false)
+    pub execute_once_and_exit: bool,      // Execute once then exit (default: false)
+
     // ShredStream (optional - for timing precision)
     pub shredstream_endpoint: Option<String>,
     pub use_shredstream_timing: bool,
@@ -137,6 +141,12 @@ impl OreConfig {
             paper_trading: env::var("PAPER_TRADING")
                 .unwrap_or_else(|_| "true".to_string()) == "true",
             enable_real_trading: env::var("ENABLE_REAL_TRADING")
+                .unwrap_or_else(|_| "false".to_string()) == "true",
+
+            // Testing/Debug flags
+            force_test_mode: env::var("FORCE_TEST_MODE")
+                .unwrap_or_else(|_| "false".to_string()) == "true",
+            execute_once_and_exit: env::var("EXECUTE_ONCE_AND_EXIT")
                 .unwrap_or_else(|_| "false".to_string()) == "true",
 
             // ShredStream (optional)

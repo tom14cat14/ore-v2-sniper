@@ -25,14 +25,11 @@ use crate::ore_shredstream::{OreShredStreamProcessor, OreEvent};
 use crate::dashboard::{DashboardWriter, DashboardEvent, get_timestamp};
 use solana_sdk::{
     signature::{Keypair, Signer},
-    pubkey::Pubkey,
 };
 
 // Ore V2 constants
 const BOARD_SIZE: usize = 25;           // 25-cell board
-const SNIPE_WINDOW_SECS: f64 = 2.0;     // Start sniping 2s before reset (late = fewer competitors per cell!)
-const FORCE_TEST_EXECUTION: bool = true; // 🔥 TESTING ENTROPY VAR FIX
-const EXECUTE_ONCE_AND_EXIT: bool = true;  // Execute one buy then exit
+const SNIPE_WINDOW_SECS: f64 = 2.8;     // Start sniping 2.8s before reset (late = fewer competitors per cell!)
 const EPOCH_DURATION_SECS: u64 = 60;    // Board resets every 60 seconds
 #[allow(dead_code)]
 const MAX_COMPETITORS: usize = 3;        // Max competitors to track
@@ -295,17 +292,17 @@ impl OreBoardSniper {
                     let mut board = BOARD.load().as_ref().clone();
                     board.pot_lamports = round_update.total_deployed;
 
-                    // Update cell costs and deployment status
+                    // Update cell deployment status
                     for (i, cell) in board.cells.iter_mut().enumerate() {
                         cell.deployed_lamports = round_update.deployed[i];
                         cell.difficulty = round_update.count[i];
                         cell.claimed = round_update.deployed[i] > 0;
 
-                        // Estimate cost (simplified - real cost calculated by program)
-                        let base_cost = 1_000_000u64; // 0.001 SOL
-                        let difficulty_factor = 1.0 + (round_update.count[i] as f64 * 0.1);
-                        cell.cost_lamports = (base_cost as f64 * difficulty_factor) as u64;
-                        cell.cost_lamports = cell.cost_lamports.max(1_000_000).min(20_000_000);
+                        // Set our fixed investment amount (from config)
+                        // This is what WE will deploy, not the cost to claim
+                        if cell.cost_lamports == 0 {
+                            cell.cost_lamports = (self.config.max_claim_cost_sol * 1e9) as u64;
+                        }
                     }
 
                     BOARD.store(Arc::new(board));
@@ -368,7 +365,7 @@ impl OreBoardSniper {
             }
 
             // === FORCE TEST MODE: ShredStream-first execution ===
-            if FORCE_TEST_EXECUTION {
+            if self.config.force_test_mode {
                 // SHREDSTREAM-FIRST: Execute as soon as we have 2+ cells with costs
                 // Don't wait for WebSocket/RPC round_id or entropy_var
                 // This achieves <1ms execution latency (the whole point of ShredStream!)
@@ -387,7 +384,7 @@ impl OreBoardSniper {
             }
 
             // Only act in snipe window (normal mode)
-            if !FORCE_TEST_EXECUTION && time_left > SNIPE_WINDOW_SECS {
+            if !self.config.force_test_mode && time_left > SNIPE_WINDOW_SECS {
                 debug!("⏱️  {:.1}s until snipe window", time_left);
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 continue;
@@ -429,7 +426,7 @@ impl OreBoardSniper {
                 self.execute_multi_snipe(&targets, time_left).await?;
 
                 // Exit after one execution (testing mode)
-                if EXECUTE_ONCE_AND_EXIT {
+                if self.config.execute_once_and_exit {
                     info!("✅ EXECUTE_ONCE_AND_EXIT: Snipe completed, exiting bot");
                     std::process::exit(0);
                 }
@@ -483,7 +480,7 @@ impl OreBoardSniper {
     /// where N is determined by adaptive scaling based on bankroll
     fn find_snipe_targets(&self, board: &OreBoard, time_left: f64, num_cells: usize, wallet_balance_sol: f64) -> Vec<Cell> {
         // 🔥 FORCE TEST MODE: Just buy ANY 2 cells to test execution
-        if FORCE_TEST_EXECUTION {
+        if self.config.force_test_mode {
             info!("🔥 FORCE TEST MODE: Selecting ANY 2 cells for test execution");
             let test_cells: Vec<Cell> = board.cells.iter()
                 .take(2)  // Just take first 2 cells, don't care which
@@ -572,43 +569,44 @@ impl OreBoardSniper {
         // === Parameters ===
         let total_pot = board.pot_lamports as f64 / 1e9;  // Total pot (SOL)
         let cell_deployed = cell.deployed_lamports as f64 / 1e9;  // Cell deployed (SOL)
-        let n_j = cell.difficulty as f64;  // Number of deployers on cell
-        let p_j = cell.cost_lamports as f64 / 1e9;  // Cell price (SOL)
+        let p_j = cell.cost_lamports as f64 / 1e9;  // My investment amount (SOL)
         let motherlode = board.motherlode_ore as f64 / 1e11;  // Motherlode (ORE)
         let ore_price = board.ore_price_sol;  // ORE price (SOL/ORE)
 
         // Constants
         let rake = 0.10;  // 10% vaulted
-        let adj = 0.95;   // Variance adjustment
-        let fees = 0.00005;  // Jito + priority fees (SOL)
+        let adj = 0.95;   // Variance adjustment (conservative)
+        let fees = 0.00005;  // Transaction fees (SOL)
 
-        // === SOL Component ===
-        // If this cell wins (1/25 prob), SOL winnings are split proportionally
-        // Our share = (p_j / (cell_deployed + p_j)) × (total_pot × 0.85)  [proportional split]
-        // Simplified: drain losers' SOL → (total_pot - cell_deployed - rake×total_pot) / (n_j+1)
+        // === Step 1: Calculate my proportional share if this cell wins ===
+        // my_fraction = my_investment / (total_on_cell + my_investment)
         let cell_total_after = cell_deployed + p_j;
-        let my_fraction = if cell_total_after > 0.0 { p_j / cell_total_after } else { 0.0 };
-        let winnings = total_pot * (1.0 - rake);
-        let my_sol_if_win = my_fraction * winnings;
-
-        // === ORE Component ===
-        // If this cell wins (1/25), ONE random deployer gets 1 ORE + Motherlode chance
-        // Probability I get ORE = (1/25) × (1/(n_j+1))
-        // Expected ORE = 1 + motherlode/625 (includes 1/625 Motherlode trigger chance)
-        // Expected ORE value = ore_price × (1 + motherlode/625) / (25 × (n_j+1))
-        let ore_expected_value = if n_j + 1.0 > 0.0 {
-            ore_price * (1.0 + motherlode / 625.0) / (25.0 * (n_j + 1.0))
+        let my_fraction = if cell_total_after > 0.0 {
+            p_j / cell_total_after
         } else {
             0.0
         };
 
-        // === Total EV ===
-        // Win prob = 1/25, apply variance adj, subtract cost and fees
+        // === Step 2: Calculate rewards if this cell wins (1/25 probability) ===
         let win_prob = 1.0 / 25.0;
-        let expected_return = win_prob * (my_sol_if_win + ore_expected_value * 25.0) * adj;
+
+        // SOL winnings: my_fraction of (pot × 0.90) [10% rake]
+        let pot_after_rake = total_pot * (1.0 - rake);
+        let my_sol_if_win = my_fraction * pot_after_rake;
+
+        // ORE winnings: my_fraction of (1 + motherlode/625) ORE
+        // The motherlode/625 represents the 1/625 chance of triggering jackpot
+        // User confirmed: ORE rewards are ALSO split proportionally by share
+        let ore_per_round = 1.0 + motherlode / 625.0;
+        let my_ore_if_win = my_fraction * ore_per_round;
+        let ore_value_if_win = my_ore_if_win * ore_price;  // Convert ORE to SOL
+
+        // === Step 3: Calculate expected value ===
+        // EV = (win_probability × rewards) - cost - fees
+        let expected_return = win_prob * (my_sol_if_win + ore_value_if_win) * adj;
         let ev_sol = expected_return - p_j - fees;
 
-        // Return EV as percentage
+        // Return EV as decimal (0.15 = 15%)
         if p_j > 0.0 {
             ev_sol / p_j
         } else {
@@ -683,9 +681,6 @@ impl OreBoardSniper {
             squares[cell.id as usize] = true;
             total_amount += cell.cost_lamports;
         }
-
-        // Get current board for entropy_var
-        let current_board = BOARD.load();
 
         // Build Deploy instruction for multiple cells
         let deploy_ix = build_deploy_instruction(
@@ -976,7 +971,7 @@ impl OreBoardSniper {
 
                         // IMMEDIATE EXECUTION CHECK (ShredStream-first architecture)
                         // In FORCE_TEST mode, execute as soon as we have 2 cells with valid costs
-                        if FORCE_TEST_EXECUTION {
+                        if self.config.force_test_mode {
                             let board = BOARD.load();
                             let cells_with_cost: Vec<_> = board.cells.iter()
                                 .filter(|c| c.cost_lamports > 0)
