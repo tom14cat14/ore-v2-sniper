@@ -19,17 +19,20 @@ use tracing::{info, debug, warn};
 
 use crate::config::OreConfig;
 use crate::ore_instructions::{
-    build_deploy_instruction, build_checkpoint_instruction,
-    get_board_address, get_miner_address,
+    build_deploy_instruction,
 };
 use crate::ore_shredstream::{OreShredStreamProcessor, OreEvent};
-use crate::ore_jito::OreJitoClient;
 use crate::dashboard::{DashboardWriter, DashboardEvent, get_timestamp};
-use solana_sdk::signature::{Keypair, Signer};
+use solana_sdk::{
+    signature::{Keypair, Signer},
+    pubkey::Pubkey,
+};
 
 // Ore V2 constants
 const BOARD_SIZE: usize = 25;           // 25-cell board
 const SNIPE_WINDOW_SECS: f64 = 2.0;     // Start sniping 2s before reset (late = fewer competitors per cell!)
+const FORCE_TEST_EXECUTION: bool = true; // 🔥 ENABLED FOR FORCE EXECUTION TEST - RE-ENABLE SAFETY CHECKS AFTER TESTING!
+const EXECUTE_ONCE_AND_EXIT: bool = true;  // 🔥 TESTING: Execute one snipe then exit
 const EPOCH_DURATION_SECS: u64 = 60;    // Board resets every 60 seconds
 #[allow(dead_code)]
 const MAX_COMPETITORS: usize = 3;        // Max competitors to track
@@ -54,6 +57,7 @@ pub struct OreBoard {
     pub pot_lamports: u64,  // Real pot size from Round account (total_deployed)
     pub motherlode_ore: u64,  // Motherlode jackpot in lamports (divide by 1e9 for ORE)
     pub ore_price_sol: f64,  // ORE price in SOL (from Jupiter)
+    pub entropy_var: solana_sdk::pubkey::Pubkey,  // Entropy VAR address for Deploy instruction
 }
 
 /// Individual cell on the Ore board
@@ -82,11 +86,13 @@ pub struct OreBoardSniper {
     price_fetcher: crate::jupiter_price::OrePriceFetcher,
     stats: SnipeStats,
     shredstream: Option<OreShredStreamProcessor>,
-    jito_client: Option<OreJitoClient>,
     wallet: Option<Keypair>,
     rpc_client: Option<crate::ore_rpc::OreRpcClient>,
     dashboard: DashboardWriter,
     entries_processed: u64,
+    board_ws_rx: tokio::sync::broadcast::Receiver<crate::ore_board_websocket::BoardUpdate>,
+    round_ws_rx: tokio::sync::broadcast::Receiver<crate::ore_board_websocket::RoundUpdate>,
+    treasury_ws_rx: tokio::sync::broadcast::Receiver<crate::ore_board_websocket::TreasuryUpdate>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -103,7 +109,7 @@ pub struct SnipeStats {
 }
 
 impl OreBoardSniper {
-    pub fn new(config: OreConfig) -> Result<Self> {
+    pub async fn new(config: OreConfig) -> Result<Self> {
         // Initialize ShredStream if enabled
         let shredstream = if config.use_shredstream_timing {
             if let Some(endpoint) = &config.shredstream_endpoint {
@@ -126,14 +132,6 @@ impl OreBoardSniper {
             None
         };
 
-        // Initialize Jito client if real trading enabled
-        let jito_client = if config.enable_real_trading {
-            info!("💰 Initializing Jito client: {}", config.jito_endpoint);
-            Some(OreJitoClient::new(config.jito_endpoint.clone()))
-        } else {
-            None
-        };
-
         // Initialize RPC client for board state fetching
         let rpc_client = Some(crate::ore_rpc::OreRpcClient::new(config.rpc_url.clone()));
         info!("📡 RPC client initialized: {}", config.rpc_url);
@@ -147,16 +145,47 @@ impl OreBoardSniper {
         let price_fetcher = crate::jupiter_price::OrePriceFetcher::new();
         info!("💰 ORE price fetcher initialized (Jupiter API)");
 
+        // Fetch initial board state to get current round_id for Round WebSocket
+        let initial_round_id = if let Some(ref rpc) = rpc_client {
+            // Fetch board state asynchronously to get current round
+            match rpc.fetch_board().await {
+                Ok(board) => {
+                    info!("📊 Initial board fetch: round {}", board.round_id);
+                    board.round_id
+                }
+                Err(e) => {
+                    warn!("⚠️ Failed to fetch initial board state: {} - using round 0", e);
+                    0
+                }
+            }
+        } else {
+            0
+        };
+
+        // Spawn Board WebSocket subscriber for real-time Board updates
+        let board_ws_rx = crate::ore_board_websocket::spawn_board_subscriber(config.ws_url.clone())?;
+        info!("📡 Board WebSocket subscriber spawned");
+
+        // Spawn Round WebSocket subscriber for real-time Round updates
+        let round_ws_rx = crate::ore_board_websocket::spawn_round_subscriber(config.ws_url.clone(), initial_round_id)?;
+        info!("📡 Round WebSocket subscriber spawned (round {})", initial_round_id);
+
+        // Spawn Treasury WebSocket subscriber for real-time Motherlode updates
+        let treasury_ws_rx = crate::ore_board_websocket::spawn_treasury_subscriber(config.ws_url.clone())?;
+        info!("📡 Treasury WebSocket subscriber spawned");
+
         Ok(Self {
             config,
             price_fetcher,
             stats: SnipeStats::default(),
             shredstream,
-            jito_client,
             wallet,
             rpc_client,
             dashboard,
             entries_processed: 0,
+            board_ws_rx,
+            round_ws_rx,
+            treasury_ws_rx,
         })
     }
 
@@ -179,8 +208,135 @@ impl OreBoardSniper {
 
         let mut last_slot = 0u64;
         let mut last_pnl_log = std::time::Instant::now();
+        let mut last_rpc_refresh = std::time::Instant::now();
 
         loop {
+            // Periodically refresh board state via RPC (every 5 seconds)
+            // This ensures we have valid data even if WebSocket returns dummy values
+            if last_rpc_refresh.elapsed().as_secs() >= 5 {
+                if let Some(ref rpc) = self.rpc_client {
+                    let mut board = BOARD.load().as_ref().clone();
+                    match rpc.update_board_state(&mut board, &mut self.price_fetcher).await {
+                        Ok(()) => {
+                            BOARD.store(Arc::new(board));
+                            debug!("✅ RPC board refresh: round {}, pot={:.6} SOL",
+                                  BOARD.load().round_id,
+                                  BOARD.load().pot_lamports as f64 / 1e9);
+                        }
+                        Err(e) => {
+                            warn!("⚠️  RPC board refresh failed: {}", e);
+                        }
+                    }
+                }
+                last_rpc_refresh = std::time::Instant::now();
+            }
+
+            // Check for Board WebSocket updates (non-blocking)
+            match self.board_ws_rx.try_recv() {
+                Ok(board_update) => {
+                    debug!("📡 Board WebSocket update: round {}, reset_slot {}",
+                          board_update.round_id, board_update.end_slot);
+
+                    // Skip WebSocket Board updates if round_id is 0 (dummy value from 33-byte format)
+                    // RPC refresh will provide valid data instead
+                    if board_update.round_id == 0 {
+                        debug!("⚠️  Skipping WebSocket Board update with round_id=0 (dummy value)");
+                        continue;
+                    }
+
+                    let mut board = BOARD.load().as_ref().clone();
+                    let old_round_id = board.round_id;
+
+                    // Update board with WebSocket data
+                    board.round_id = board_update.round_id;
+                    board.reset_slot = board_update.end_slot;
+                    board.entropy_var = board_update.entropy_var;
+                    BOARD.store(Arc::new(board));
+
+                    // If round changed, re-subscribe to new Round account
+                    if board_update.round_id != old_round_id && board_update.round_id > 0 {
+                        info!("🔄 Round changed {} → {}, re-subscribing to Round WebSocket",
+                              old_round_id, board_update.round_id);
+
+                        // Spawn new Round subscriber for new round
+                        match crate::ore_board_websocket::spawn_round_subscriber(
+                            self.config.ws_url.clone(),
+                            board_update.round_id
+                        ) {
+                            Ok(new_rx) => {
+                                self.round_ws_rx = new_rx;
+                                info!("✅ Round WebSocket re-subscribed to round {}", board_update.round_id);
+                            }
+                            Err(e) => {
+                                warn!("⚠️  Failed to re-subscribe to Round WebSocket: {}", e);
+                            }
+                        }
+                    }
+                }
+                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
+                Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                    warn!("⚠️  Board WebSocket lagged, skipped {} updates", skipped);
+                }
+                Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                    warn!("⚠️  Board WebSocket closed");
+                }
+            }
+
+            // Check for Round WebSocket updates (non-blocking)
+            match self.round_ws_rx.try_recv() {
+                Ok(round_update) => {
+                    debug!("📊 Round WebSocket update: pot={:.6} SOL, {}/25 cells claimed",
+                          round_update.total_deployed as f64 / 1e9,
+                          round_update.deployed.iter().filter(|&&x| x > 0).count());
+
+                    // Update board with Round data
+                    let mut board = BOARD.load().as_ref().clone();
+                    board.pot_lamports = round_update.total_deployed;
+
+                    // Update cell costs and deployment status
+                    for (i, cell) in board.cells.iter_mut().enumerate() {
+                        cell.deployed_lamports = round_update.deployed[i];
+                        cell.difficulty = round_update.count[i];
+                        cell.claimed = round_update.deployed[i] > 0;
+
+                        // Estimate cost (simplified - real cost calculated by program)
+                        let base_cost = 1_000_000u64; // 0.001 SOL
+                        let difficulty_factor = 1.0 + (round_update.count[i] as f64 * 0.1);
+                        cell.cost_lamports = (base_cost as f64 * difficulty_factor) as u64;
+                        cell.cost_lamports = cell.cost_lamports.max(1_000_000).min(20_000_000);
+                    }
+
+                    BOARD.store(Arc::new(board));
+                }
+                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
+                Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                    warn!("⚠️  Round WebSocket lagged, skipped {} updates", skipped);
+                }
+                Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                    warn!("⚠️  Round WebSocket closed");
+                }
+            }
+
+            // Check for Treasury WebSocket updates (non-blocking)
+            match self.treasury_ws_rx.try_recv() {
+                Ok(treasury_update) => {
+                    debug!("💎 Treasury WebSocket update: Motherlode={:.2} ORE",
+                          treasury_update.motherlode_balance as f64 / 1e11);
+
+                    // Update board with Treasury data
+                    let mut board = BOARD.load().as_ref().clone();
+                    board.motherlode_ore = treasury_update.motherlode_balance;
+                    BOARD.store(Arc::new(board));
+                }
+                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
+                Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                    warn!("⚠️  Treasury WebSocket lagged, skipped {} updates", skipped);
+                }
+                Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                    warn!("⚠️  Treasury WebSocket closed");
+                }
+            }
+
             // Wait for new slot from ShredStream
             let current_slot = self.wait_for_new_slot().await?;
 
@@ -209,8 +365,27 @@ impl OreBoardSniper {
                 LAST_TIMING_LOG.store(now_secs, std::sync::atomic::Ordering::Relaxed);
             }
 
-            // Only act in snipe window
-            if time_left > SNIPE_WINDOW_SECS {
+            // === FORCE TEST MODE: ShredStream-first execution ===
+            if FORCE_TEST_EXECUTION {
+                // SHREDSTREAM-FIRST: Execute as soon as we have 2+ cells with costs
+                // Don't wait for WebSocket/RPC round_id or entropy_var
+                // This achieves <1ms execution latency (the whole point of ShredStream!)
+                let cells_with_cost = board.cells.iter().filter(|c| c.cost_lamports > 0).count();
+
+                if cells_with_cost < 2 {
+                    debug!("🔥 FORCE TEST: Waiting for ShredStream to detect cells ({}/2 cells ready)",
+                          cells_with_cost);
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+
+                info!("🔥 FORCE TEST MODE: ShredStream detected {} cells - executing NOW!", cells_with_cost);
+                info!("   (Bypassing round_id/entropy_var checks - ShredStream-first architecture)");
+                info!("   Cells with cost: {}/25", cells_with_cost);
+            }
+
+            // Only act in snipe window (normal mode)
+            if !FORCE_TEST_EXECUTION && time_left > SNIPE_WINDOW_SECS {
                 debug!("⏱️  {:.1}s until snipe window", time_left);
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 continue;
@@ -250,6 +425,12 @@ impl OreBoardSniper {
 
                 // Execute multi-cell snipe (JITO bundle with all cells)
                 self.execute_multi_snipe(&targets, time_left).await?;
+
+                // Exit after one execution (testing mode)
+                if EXECUTE_ONCE_AND_EXIT {
+                    info!("✅ EXECUTE_ONCE_AND_EXIT: Snipe completed, exiting bot");
+                    std::process::exit(0);
+                }
             } else {
                 let min_deployers = board.cells.iter().map(|c| c.difficulty).min().unwrap_or(0);
                 let max_deployers = board.cells.iter().map(|c| c.difficulty).max().unwrap_or(0);
@@ -299,8 +480,24 @@ impl OreBoardSniper {
     /// Returns top N cells ranked by S_j score (drain potential per cost)
     /// where N is determined by adaptive scaling based on bankroll
     fn find_snipe_targets(&self, board: &OreBoard, time_left: f64, num_cells: usize, wallet_balance_sol: f64) -> Vec<Cell> {
-        const MAX_CELL_COST: u64 = 5_000_000;  // Max 0.005 SOL per cell (lower risk, smaller pot share)
-        const MIN_MOTHERLODE_ORE: f64 = 125.0;  // Only play when Motherlode >= 125 ORE
+        // 🔥 FORCE TEST MODE: Just buy ANY 2 cells to test execution
+        if FORCE_TEST_EXECUTION {
+            info!("🔥 FORCE TEST MODE: Selecting ANY 2 cells for test execution");
+            let test_cells: Vec<Cell> = board.cells.iter()
+                .take(2)  // Just take first 2 cells, don't care which
+                .cloned()
+                .collect();
+
+            info!("🔥 FORCE TEST: Selected {} cells for execution (cell IDs: {} and {})",
+                test_cells.len(),
+                test_cells[0].id,
+                test_cells.get(1).map(|c| c.id).unwrap_or(255)
+            );
+            return test_cells;
+        }
+
+        const MAX_CELL_COST: u64 = 5_000_000;  // Max 0.005 SOL per cell (TESTING MODE)
+        const MIN_MOTHERLODE_ORE: f64 = 10.0;  // Only play when Motherlode >= 10 ORE (TESTING MODE)
 
         // === Motherlode Gating ===
         let motherlode_ore = board.motherlode_ore as f64 / 1e11;
@@ -440,97 +637,6 @@ impl OreBoardSniper {
         (slots_left * SLOT_DURATION_MS / 1000.0).max(0.0)
     }
 
-    /// Legacy single-cell execution (replaced by execute_multi_snipe)
-    #[allow(dead_code)]
-    async fn execute_snipe(&mut self, cell: &Cell, time_left: f64) -> Result<()> {
-        let start = Instant::now();
-
-        if self.config.paper_trading {
-            info!("📝 PAPER TRADE: Would deploy to cell {}", cell.id);
-            let board = BOARD.load();
-            let cost = cell.cost_lamports as f64 / 1e9;
-            let ev = self.calculate_ev(&board, cell, time_left);
-            info!("   Cost: {:.6} SOL | EV: {:.1}% | Time left: {:.1}s", cost, ev * 100.0, time_left);
-
-            self.stats.total_snipes += 1;
-            self.stats.successful_snipes += 1;
-            self.stats.total_spent_sol += cost;
-            return Ok(());
-        }
-
-        // LIVE TRADING
-        info!("🚀 LIVE: Building Deploy bundle for cell {}", cell.id);
-
-        // Get wallet and Jito client
-        let wallet = self.wallet.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Wallet not loaded"))?;
-        let jito_client = self.jito_client.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Jito client not initialized"))?;
-
-        let authority = wallet.pubkey();
-
-        // Get current round ID from board
-        let board = BOARD.load();
-        let round_id = (board.current_slot / 150) as u64; // Estimate: 150 slots per round
-
-        // Build Deploy instruction
-        // Deploy to ONLY this cell (all others false)
-        let mut squares = [false; 25];
-        squares[cell.id as usize] = true;
-
-        let deploy_ix = build_deploy_instruction(
-            authority,          // Signer
-            authority,          // Authority (same as signer)
-            cell.cost_lamports, // Amount to bet
-            round_id,           // Current round
-            squares,            // Deploy to this cell only
-        )?;
-
-        info!("✅ Deploy instruction built in {:?}", start.elapsed());
-
-        // JITO ONLY: At 2s window, speed is critical (no time for RPC)
-        let board = BOARD.load();
-        let ev = self.calculate_ev(&board, cell, time_left);
-        let bet_sol = cell.cost_lamports as f64 / 1_000_000_000.0;
-
-        // Calculate dynamic Jito tip based on EV
-        let tip_lamports = jito_client.calculate_dynamic_tip(ev, bet_sol).await?;
-
-        info!("💰 Jito tip: {:.6} SOL (EV: {:.1}%)",
-              tip_lamports as f64 / 1e9, ev * 100.0);
-
-        // Get recent blockhash
-        let recent_blockhash = *RECENT_BLOCKHASH.read().await;
-
-        // Build Jito bundle
-        let bundle = jito_client.build_bundle(
-            deploy_ix,
-            tip_lamports,
-            wallet,
-            recent_blockhash,
-        )?;
-
-        info!("📦 Bundle built in {:?}", start.elapsed());
-
-        // Submit bundle via Jito
-        let bundle_id = jito_client.submit_bundle(bundle).await?;
-
-        info!("✅ Bundle submitted: {} | Cell {} | Cost: {:.6} SOL | Tip: {:.6} SOL | Time: {:.1}s",
-            bundle_id,
-            cell.id,
-            bet_sol,
-            tip_lamports as f64 / 1e9,
-            time_left
-        );
-
-        // Update stats
-        self.stats.total_snipes += 1;
-        self.stats.successful_snipes += 1;
-        self.stats.total_spent_sol += bet_sol;
-        self.stats.total_tips_paid += tip_lamports as f64 / 1e9;
-
-        Ok(())
-    }
 
     /// Execute multi-cell snipe (portfolio strategy)
     ///
@@ -576,6 +682,9 @@ impl OreBoardSniper {
             total_amount += cell.cost_lamports;
         }
 
+        // Get current board for entropy_var
+        let current_board = BOARD.load();
+
         // Build Deploy instruction for multiple cells
         let deploy_ix = build_deploy_instruction(
             authority,
@@ -583,6 +692,7 @@ impl OreBoardSniper {
             total_amount,  // Total amount for all cells
             round_id,
             squares,       // Multiple cells set to true
+            current_board.entropy_var, // Entropy VAR from Board account
         )?;
 
         info!("✅ Multi-cell Deploy instruction built in {:?}", start.elapsed());
@@ -769,11 +879,13 @@ impl OreBoardSniper {
             price_fetcher: crate::jupiter_price::OrePriceFetcher::new(), // Fresh fetcher for clone
             stats: self.stats.clone(),
             shredstream: None, // Don't clone ShredStream (not needed for snipes)
-            jito_client: self.jito_client.clone(),
             wallet: self.wallet.as_ref().map(|w| w.insecure_clone()),
             rpc_client: None, // Don't clone RPC (not needed for snipes)
             dashboard: self.dashboard.clone(),
             entries_processed: self.entries_processed,
+            board_ws_rx: self.board_ws_rx.resubscribe(), // New receiver from same broadcast channel
+            round_ws_rx: self.round_ws_rx.resubscribe(), // New receiver from same broadcast channel
+            treasury_ws_rx: self.treasury_ws_rx.resubscribe(), // New receiver from same broadcast channel
         }
     }
 
@@ -804,7 +916,7 @@ impl OreBoardSniper {
 
                         // Update board reset slot and increment round ID
                         let mut board = BOARD.load().as_ref().clone();
-                        let old_round_id = board.round_id;
+                        let _old_round_id = board.round_id;
                         board.reset_slot = slot;
                         board.round_id += 1;
                         // Clear all claims and deployers
@@ -827,75 +939,55 @@ impl OreBoardSniper {
                         }
 
                         BOARD.store(Arc::new(board));
-
-                        // Clone wallet and jito BEFORE spawn to avoid lifetime issues
-                        let wallet_for_claim = self.wallet.as_ref().map(|w| Arc::new(w.insecure_clone()));
-                        let jito_for_claim = self.jito_client.clone();
-                        let claim_round_id = old_round_id; // Claim rewards from the round that just ended
-
-                        // Spawn auto-claim task (only in real trading mode)
-                        if !self.config.paper_trading {
-                            if let (Some(wallet), Some(jito_client)) = (wallet_for_claim, jito_for_claim) {
-                                tokio::spawn(async move {
-                                    // Wait for round to complete + buffer (65 seconds)
-                                    info!("⏳ Scheduled auto-claim for round {} in 65 seconds", claim_round_id);
-                                    tokio::time::sleep(Duration::from_secs(65)).await;
-
-                                    info!("🎁 Auto-claiming rewards for round {}", claim_round_id);
-
-                                    // Build checkpoint instruction
-                                    if let Ok(board_address) = get_board_address() {
-                                        if let Ok(miner_address) = get_miner_address(wallet.pubkey()) {
-                                            if let Ok(checkpoint_ix) = build_checkpoint_instruction(
-                                                wallet.pubkey(),
-                                                board_address,
-                                                miner_address,
-                                                claim_round_id,
-                                            ) {
-                                                // Get recent blockhash
-                                                let blockhash = *RECENT_BLOCKHASH.read().await;
-
-                                                // Calculate tip (small for claims)
-                                                let tip_lamports = jito_client.calculate_dynamic_tip(0.0, 0.0).await.unwrap_or(10000);
-
-                                                // Submit bundle
-                                                match jito_client.submit_checkpoint_bundle(
-                                                    checkpoint_ix,
-                                                    tip_lamports,
-                                                    &wallet,
-                                                    blockhash
-                                                ).await {
-                                                    Ok(bundle_id) => {
-                                                        info!("✅ Auto-claim submitted: {} | Round: {} | Tip: {:.6} SOL",
-                                                            bundle_id, claim_round_id, tip_lamports as f64 / 1e9);
-                                                        // TODO: Track earned SOL once claim confirms
-                                                        // (requires monitoring transaction confirmation)
-                                                    }
-                                                    Err(e) => {
-                                                        warn!("⚠️ Auto-claim failed: {} | Round: {}", e, claim_round_id);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-                        } else {
-                            info!("📝 Paper trading - skipping auto-claim for round {}", old_round_id);
-                        }
                     }
-                    OreEvent::CellDeployed { cell_id, authority } => {
-                        info!("✅ Cell {} deployed by {}", cell_id, &authority[..8]);
+                    OreEvent::CellDeployed { cell_id, authority, amount_lamports } => {
+                        info!("✅ Cell {} deployed: {:.6} SOL by {}",
+                              cell_id, amount_lamports as f64 / 1e9, &authority[..8]);
 
-                        // TRACK DEPLOYERS: Count how many people are on this cell for pot splitting
-                        // (Real pot is fetched from RPC Round account, not tracked locally)
+                        // PROPORTIONAL OWNERSHIP TRACKING (Ore V2 mechanics):
+                        // Multiple players can deploy to same cell with different amounts
+                        // Rewards are split proportionally based on each player's share
                         {
                             let mut board = BOARD.load().as_ref().clone();
                             if (cell_id as usize) < BOARD_SIZE {
-                                board.cells[cell_id as usize].deployers.push(authority.clone());
-                                board.cells[cell_id as usize].claimed = true;
+                                let cell = &mut board.cells[cell_id as usize];
+
+                                // Track deployer
+                                cell.deployers.push(authority.clone());
+                                cell.claimed = true;
+
+                                // PROPORTIONAL OWNERSHIP: Track total deployed to this cell
+                                cell.deployed_lamports += amount_lamports;
+
+                                // Set our fixed investment amount (from config, convert SOL to lamports)
+                                if cell.cost_lamports == 0 {
+                                    cell.cost_lamports = (self.config.max_claim_cost_sol * 1e9) as u64;
+                                }
+
+                                // Track difficulty (number of deployers for pot splitting)
+                                cell.difficulty = cell.deployers.len() as u64;
+
+                                info!("   → Cell {} totals: deployed={:.6} SOL, deployers={}",
+                                      cell_id, cell.deployed_lamports as f64 / 1e9, cell.difficulty);
                             }
                             BOARD.store(Arc::new(board));
+                        }
+
+                        // IMMEDIATE EXECUTION CHECK (ShredStream-first architecture)
+                        // In FORCE_TEST mode, execute as soon as we have 2 cells with valid costs
+                        if FORCE_TEST_EXECUTION {
+                            let board = BOARD.load();
+                            let cells_with_cost: Vec<_> = board.cells.iter()
+                                .filter(|c| c.cost_lamports > 0)
+                                .collect();
+
+                            if cells_with_cost.len() >= 2 {
+                                info!("🔥 FORCE TEST: ShredStream detected {} cells, executing NOW!", cells_with_cost.len());
+
+                                // Trigger immediate execution (don't wait for RPC/WebSocket)
+                                // This happens in the main loop via the force test condition
+                                // We just need to ensure board.cells are populated, which they now are
+                            }
                         }
 
                         // FINAL-WINDOW STRATEGY: Wait until <2s to know true EV

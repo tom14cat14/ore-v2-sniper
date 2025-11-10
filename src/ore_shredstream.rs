@@ -4,7 +4,7 @@
 use anyhow::Result;
 use futures::StreamExt;
 use solana_entry::entry::Entry;
-use solana_stream_sdk::{CommitmentLevel, ShredstreamClient};
+use solana_stream_sdk::ShredstreamClient;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{RwLock, broadcast};
@@ -19,7 +19,7 @@ pub enum OreEvent {
     BoardReset { slot: u64 },
 
     /// Cell deployed to (claimed)
-    CellDeployed { cell_id: u8, authority: String },
+    CellDeployed { cell_id: u8, authority: String, amount_lamports: u64 },
 
     /// Current slot update
     SlotUpdate { slot: u64 },
@@ -65,13 +65,15 @@ impl OreShredStreamProcessor {
 
         info!("✅ ShredStream connection established");
 
-        info!("📡 Subscribing to ALL entries (will filter for Ore V2 client-side)");
+        info!("📡 Subscribing to ShredStream for all entries (filter Ore events locally)");
 
-        // Subscribe to ALL entries - filter for Ore V2 client-side
+        // Subscribe to ALL entries (no filtering - per ShredStream Service working implementation)
+        // Account-based filtering appears unreliable with ERPC ShredStream
+        // We filter for Ore program transactions in parse_ore_transaction() instead
         let request = ShredstreamClient::create_empty_entries_request();
 
         let mut stream = client.subscribe_entries(request).await?;
-        info!("📡 Subscribed to ShredStream for Ore V2 events");
+        info!("📡 Subscribed to ShredStream (will filter Ore V2 events locally)");
 
         // Create broadcast channel for fan-out to multiple consumers (snipe + auto-claim)
         // Capacity 100 = buffer 100 slot updates before dropping old ones
@@ -275,6 +277,12 @@ impl OreShredStreamProcessor {
                     // Deploy has: amount (8 bytes) + squares (4 bytes)
                     // squares contains the cell IDs as a 32-bit bitmask
                     if ix.data.len() >= 13 {
+                        // Parse amount (bytes 1-8, little-endian u64)
+                        let amount_lamports = u64::from_le_bytes([
+                            ix.data[1], ix.data[2], ix.data[3], ix.data[4],
+                            ix.data[5], ix.data[6], ix.data[7], ix.data[8]
+                        ]);
+
                         // Parse squares bitmask (little-endian u32)
                         let squares = u32::from_le_bytes([
                             ix.data[9], ix.data[10], ix.data[11], ix.data[12]
@@ -292,13 +300,15 @@ impl OreShredStreamProcessor {
                             "unknown".to_string()
                         };
 
-                        // Log all cells in the bitmask
+                        // Log all cells in the bitmask (proportional ownership - track amounts!)
                         for cell_id in 0..32 {
                             if (squares & (1 << cell_id)) != 0 {
-                                debug!("🎲 Detected Deploy event: cell_id={}, authority={}", cell_id, authority);
+                                debug!("🎲 Detected Deploy: cell_id={}, amount={:.6} SOL, authority={}",
+                                       cell_id, amount_lamports as f64 / 1e9, &authority[..8]);
                                 events.push(OreEvent::CellDeployed {
                                     cell_id: cell_id as u8,
-                                    authority: authority.clone()
+                                    authority: authority.clone(),
+                                    amount_lamports
                                 });
                             }
                         }
