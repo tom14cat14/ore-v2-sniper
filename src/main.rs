@@ -1,7 +1,6 @@
 use anyhow::Result;
 use ore_sniper::{OreBoardSniper, OreConfig};
 use tracing::{error, info};
-use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<()> {

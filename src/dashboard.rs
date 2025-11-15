@@ -80,6 +80,12 @@ pub struct DashboardWriter {
     events: Vec<DashboardEvent>,
 }
 
+impl Default for DashboardWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DashboardWriter {
     pub fn new() -> Self {
         Self { events: Vec::new() }

@@ -882,7 +882,7 @@ impl OreBoardSniper {
 
         // Get current round ID
         let board = BOARD.load();
-        let round_id = (board.current_slot / 150) as u64;
+        let round_id = (board.current_slot / 150);
 
         // Build squares array with ALL selected cells set to true
         let mut squares = [false; 25];

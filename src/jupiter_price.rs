@@ -79,6 +79,12 @@ pub struct OrePriceFetcher {
     cache_duration: std::time::Duration,
 }
 
+impl Default for OrePriceFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OrePriceFetcher {
     pub fn new() -> Self {
         Self {
