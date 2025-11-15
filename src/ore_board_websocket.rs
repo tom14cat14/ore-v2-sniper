@@ -1,20 +1,14 @@
 // ore_board_websocket.rs — WebSocket subscribers for Ore V2 Board, Round, and Treasury accounts
 // Real-time account state updates via WebSocket (replaces periodic RPC polling)
 
-use anyhow::{Result, anyhow};
-use solana_client::{
-    nonblocking::pubsub_client::PubsubClient,
-    rpc_config::RpcAccountInfoConfig,
-};
-use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    pubkey::Pubkey,
-};
+use anyhow::{anyhow, Result};
+use futures_util::StreamExt;
+use solana_client::{nonblocking::pubsub_client::PubsubClient, rpc_config::RpcAccountInfoConfig};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 use tokio::sync::broadcast;
-use tracing::{info, warn, debug, error};
-use futures_util::StreamExt;  // For stream.next()
+use tracing::{debug, error, info, warn}; // For stream.next()
 
-use crate::ore_instructions::{BOARD, ROUND, ORE_PROGRAM_ID};
+use crate::ore_instructions::{BOARD, ORE_PROGRAM_ID, ROUND};
 use crate::ore_rpc::{BoardAccount, RoundAccount, TreasuryAccount};
 
 const TREASURY: &[u8] = b"treasury";
@@ -34,7 +28,7 @@ impl From<BoardAccount> for BoardUpdate {
             round_id: board.round_id,
             start_slot: board.start_slot,
             end_slot: board.end_slot,
-            entropy_var: Pubkey::default(),  // Not available in BoardAccount (RPC data)
+            entropy_var: Pubkey::default(), // Not available in BoardAccount (RPC data)
         }
     }
 }
@@ -43,10 +37,10 @@ impl From<BoardAccount> for BoardUpdate {
 #[derive(Debug, Clone)]
 pub struct RoundUpdate {
     pub id: u64,
-    pub deployed: [u64; 25],     // SOL deployed per cell
-    pub count: [u64; 25],        // Number of deployers per cell
-    pub total_deployed: u64,     // Total pot size
-    pub total_winnings: u64,     // Total winnings for round
+    pub deployed: [u64; 25], // SOL deployed per cell
+    pub count: [u64; 25],    // Number of deployers per cell
+    pub total_deployed: u64, // Total pot size
+    pub total_winnings: u64, // Total winnings for round
 }
 
 impl From<RoundAccount> for RoundUpdate {
@@ -64,15 +58,15 @@ impl From<RoundAccount> for RoundUpdate {
 /// Treasury account update message sent via broadcast channel
 #[derive(Debug, Clone)]
 pub struct TreasuryUpdate {
-    pub motherlode_balance: u64,  // Accumulated ORE jackpot (÷1e11 for ORE)
-    pub total_minted: u64,         // Total ORE ever minted
+    pub motherlode_balance: u64, // Accumulated ORE jackpot (÷1e11 for ORE)
+    pub total_minted: u64,       // Total ORE ever minted
 }
 
 impl From<TreasuryAccount> for TreasuryUpdate {
     fn from(treasury: TreasuryAccount) -> Self {
         Self {
             motherlode_balance: treasury.motherlode,
-            total_minted: 0,  // Not available in TreasuryAccount
+            total_minted: 0, // Not available in TreasuryAccount
         }
     }
 }
@@ -92,17 +86,11 @@ impl BoardWebSocketSubscriber {
         info!("   Board PDA: {}", board_pda);
         info!("   WebSocket URL: {}", ws_url);
 
-        Ok(Self {
-            ws_url,
-            board_pda,
-        })
+        Ok(Self { ws_url, board_pda })
     }
 
     /// Subscribe to Board account updates and send to broadcast channel
-    pub async fn subscribe(
-        &self,
-        tx: broadcast::Sender<BoardUpdate>,
-    ) -> Result<()> {
+    pub async fn subscribe(&self, tx: broadcast::Sender<BoardUpdate>) -> Result<()> {
         loop {
             match self.subscribe_inner(tx.clone()).await {
                 Ok(_) => {
@@ -116,20 +104,18 @@ impl BoardWebSocketSubscriber {
         }
     }
 
-    async fn subscribe_inner(
-        &self,
-        tx: broadcast::Sender<BoardUpdate>,
-    ) -> Result<()> {
+    async fn subscribe_inner(&self, tx: broadcast::Sender<BoardUpdate>) -> Result<()> {
         info!("🔌 Connecting to Board WebSocket: {}", self.ws_url);
 
-        let pubsub = PubsubClient::new(&self.ws_url).await
+        let pubsub = PubsubClient::new(&self.ws_url)
+            .await
             .map_err(|e| anyhow!("Failed to connect to WebSocket: {}", e))?;
 
         info!("✅ Board WebSocket connected");
 
         // Subscribe to Board PDA account changes (with confirmed commitment)
         let config = RpcAccountInfoConfig {
-            encoding: None,  // Use default binary encoding
+            encoding: None, // Use default binary encoding
             commitment: Some(CommitmentConfig::confirmed()),
             data_slice: None,
             min_context_slot: None,
@@ -145,11 +131,12 @@ impl BoardWebSocketSubscriber {
         // Process incoming account updates
         while let Some(response) = stream.next().await {
             // Extract bytes from UiAccountData enum
+            use base64::{engine::general_purpose, Engine as _};
             use solana_account_decoder::UiAccountData;
-            use base64::{Engine as _, engine::general_purpose};
 
             let bytes: Vec<u8> = match &response.value.data {
-                UiAccountData::Binary(encoded_data, _) | UiAccountData::LegacyBinary(encoded_data) => {
+                UiAccountData::Binary(encoded_data, _)
+                | UiAccountData::LegacyBinary(encoded_data) => {
                     // Decode base64 string to bytes
                     match general_purpose::STANDARD.decode(encoded_data) {
                         Ok(data) => data,
@@ -167,8 +154,10 @@ impl BoardWebSocketSubscriber {
 
             match self.parse_board_update(&bytes) {
                 Ok(update) => {
-                    debug!("📊 Board update: round {}, reset_slot {}, entropy_var {}",
-                          update.round_id, update.end_slot, update.entropy_var);
+                    debug!(
+                        "📊 Board update: round {}, reset_slot {}, entropy_var {}",
+                        update.round_id, update.end_slot, update.entropy_var
+                    );
 
                     // Send to broadcast channel (ignore send errors - no subscribers is OK)
                     let _ = tx.send(update);
@@ -184,7 +173,11 @@ impl BoardWebSocketSubscriber {
 
     fn parse_board_update(&self, data: &[u8]) -> Result<BoardUpdate> {
         // DEBUG: Log raw bytes to investigate 33-byte structure
-        debug!("📊 Board account bytes ({}): {:02x?}", data.len(), &data[..data.len().min(40)]);
+        debug!(
+            "📊 Board account bytes ({}): {:02x?}",
+            data.len(),
+            &data[..data.len().min(40)]
+        );
 
         // INVESTIGATION: 33 bytes suggests:
         // - 1 byte: discriminator OR
@@ -195,20 +188,26 @@ impl BoardWebSocketSubscriber {
         if data.len() == 33 {
             // Skip 1-byte discriminator, parse 32-byte Pubkey
             let current_round_pda = Pubkey::try_from(&data[1..33])?;
-            info!("📊 Board (33-byte format): current_round_pda = {}", current_round_pda);
+            info!(
+                "📊 Board (33-byte format): current_round_pda = {}",
+                current_round_pda
+            );
 
             // For now, return dummy values - we'll need to query Round account separately
             return Ok(BoardUpdate {
-                round_id: 0,  // Unknown - need to fetch from Round account
+                round_id: 0, // Unknown - need to fetch from Round account
                 start_slot: 0,
                 end_slot: 0,
-                entropy_var: current_round_pda,  // Store round PDA temporarily
+                entropy_var: current_round_pda, // Store round PDA temporarily
             });
         }
 
         // Try original 64-byte format
         if data.len() < 64 {
-            return Err(anyhow!("Board account data unexpected size: {} bytes (expected 33 or 64+)", data.len()));
+            return Err(anyhow!(
+                "Board account data unexpected size: {} bytes (expected 33 or 64+)",
+                data.len()
+            ));
         }
 
         // Skip 8-byte discriminator, then parse fields:
@@ -231,9 +230,7 @@ impl BoardWebSocketSubscriber {
 }
 
 /// Spawn Board WebSocket subscriber task
-pub fn spawn_board_subscriber(
-    ws_url: String,
-) -> Result<broadcast::Receiver<BoardUpdate>> {
+pub fn spawn_board_subscriber(ws_url: String) -> Result<broadcast::Receiver<BoardUpdate>> {
     let subscriber = BoardWebSocketSubscriber::new(ws_url)?;
 
     // Create broadcast channel (capacity 16 for buffering)
@@ -268,17 +265,11 @@ impl RoundWebSocketSubscriber {
         info!("   Round PDA: {}", round_pda);
         info!("   WebSocket URL: {}", ws_url);
 
-        Ok(Self {
-            ws_url,
-            round_pda,
-        })
+        Ok(Self { ws_url, round_pda })
     }
 
     /// Subscribe to Round account updates and send to broadcast channel
-    pub async fn subscribe(
-        &self,
-        tx: broadcast::Sender<RoundUpdate>,
-    ) -> Result<()> {
+    pub async fn subscribe(&self, tx: broadcast::Sender<RoundUpdate>) -> Result<()> {
         loop {
             match self.subscribe_inner(tx.clone()).await {
                 Ok(_) => {
@@ -292,13 +283,11 @@ impl RoundWebSocketSubscriber {
         }
     }
 
-    async fn subscribe_inner(
-        &self,
-        tx: broadcast::Sender<RoundUpdate>,
-    ) -> Result<()> {
+    async fn subscribe_inner(&self, tx: broadcast::Sender<RoundUpdate>) -> Result<()> {
         info!("🔌 Connecting to Round WebSocket: {}", self.ws_url);
 
-        let pubsub = PubsubClient::new(&self.ws_url).await
+        let pubsub = PubsubClient::new(&self.ws_url)
+            .await
             .map_err(|e| anyhow!("Failed to connect to WebSocket: {}", e))?;
 
         info!("✅ Round WebSocket connected");
@@ -318,11 +307,12 @@ impl RoundWebSocketSubscriber {
         info!("✅ Subscribed to Round PDA account updates");
 
         while let Some(response) = stream.next().await {
+            use base64::{engine::general_purpose, Engine as _};
             use solana_account_decoder::UiAccountData;
-            use base64::{Engine as _, engine::general_purpose};
 
             let bytes: Vec<u8> = match &response.value.data {
-                UiAccountData::Binary(encoded_data, _) | UiAccountData::LegacyBinary(encoded_data) => {
+                UiAccountData::Binary(encoded_data, _)
+                | UiAccountData::LegacyBinary(encoded_data) => {
                     match general_purpose::STANDARD.decode(encoded_data) {
                         Ok(data) => data,
                         Err(e) => {
@@ -339,10 +329,12 @@ impl RoundWebSocketSubscriber {
 
             match self.parse_round_update(&bytes) {
                 Ok(update) => {
-                    debug!("📊 Round update: id {}, pot={:.6} SOL, {}/25 cells claimed",
-                          update.id,
-                          update.total_deployed as f64 / 1e9,
-                          update.deployed.iter().filter(|&&x| x > 0).count());
+                    debug!(
+                        "📊 Round update: id {}, pot={:.6} SOL, {}/25 cells claimed",
+                        update.id,
+                        update.total_deployed as f64 / 1e9,
+                        update.deployed.iter().filter(|&&x| x > 0).count()
+                    );
                     let _ = tx.send(update);
                 }
                 Err(e) => {
@@ -364,19 +356,22 @@ impl RoundWebSocketSubscriber {
         // ... then motherlode, rent_payer, top_miner, rewards, totals
 
         if data.len() < 8 + 8 + 200 + 32 + 200 + 8 + 8 + 32 + 32 + 8 + 8 + 8 + 8 {
-            return Err(anyhow!("Round account data too small: {} bytes", data.len()));
+            return Err(anyhow!(
+                "Round account data too small: {} bytes",
+                data.len()
+            ));
         }
 
         let mut offset = 8; // Skip discriminator
 
         // Parse id
-        let id = u64::from_le_bytes(data[offset..offset+8].try_into()?);
+        let id = u64::from_le_bytes(data[offset..offset + 8].try_into()?);
         offset += 8;
 
         // Parse deployed array (25 u64s)
         let mut deployed = [0u64; 25];
         for i in 0..25 {
-            deployed[i] = u64::from_le_bytes(data[offset..offset+8].try_into()?);
+            deployed[i] = u64::from_le_bytes(data[offset..offset + 8].try_into()?);
             offset += 8;
         }
         offset += 32; // Skip slot_hash
@@ -384,7 +379,7 @@ impl RoundWebSocketSubscriber {
         // Parse count array (25 u64s)
         let mut count = [0u64; 25];
         for i in 0..25 {
-            count[i] = u64::from_le_bytes(data[offset..offset+8].try_into()?);
+            count[i] = u64::from_le_bytes(data[offset..offset + 8].try_into()?);
             offset += 8;
         }
 
@@ -392,12 +387,12 @@ impl RoundWebSocketSubscriber {
         offset += 8 + 8 + 32 + 32 + 8;
 
         // Parse total_deployed
-        let total_deployed = u64::from_le_bytes(data[offset..offset+8].try_into()?);
+        let total_deployed = u64::from_le_bytes(data[offset..offset + 8].try_into()?);
         offset += 8;
         offset += 8; // Skip total_vaulted
 
         // Parse total_winnings
-        let total_winnings = u64::from_le_bytes(data[offset..offset+8].try_into()?);
+        let total_winnings = u64::from_le_bytes(data[offset..offset + 8].try_into()?);
 
         Ok(RoundUpdate {
             id,
@@ -451,10 +446,7 @@ impl TreasuryWebSocketSubscriber {
     }
 
     /// Subscribe to Treasury account updates and send to broadcast channel
-    pub async fn subscribe(
-        &self,
-        tx: broadcast::Sender<TreasuryUpdate>,
-    ) -> Result<()> {
+    pub async fn subscribe(&self, tx: broadcast::Sender<TreasuryUpdate>) -> Result<()> {
         loop {
             match self.subscribe_inner(tx.clone()).await {
                 Ok(_) => {
@@ -468,13 +460,11 @@ impl TreasuryWebSocketSubscriber {
         }
     }
 
-    async fn subscribe_inner(
-        &self,
-        tx: broadcast::Sender<TreasuryUpdate>,
-    ) -> Result<()> {
+    async fn subscribe_inner(&self, tx: broadcast::Sender<TreasuryUpdate>) -> Result<()> {
         info!("🔌 Connecting to Treasury WebSocket: {}", self.ws_url);
 
-        let pubsub = PubsubClient::new(&self.ws_url).await
+        let pubsub = PubsubClient::new(&self.ws_url)
+            .await
             .map_err(|e| anyhow!("Failed to connect to WebSocket: {}", e))?;
 
         info!("✅ Treasury WebSocket connected");
@@ -494,11 +484,12 @@ impl TreasuryWebSocketSubscriber {
         info!("✅ Subscribed to Treasury PDA account updates");
 
         while let Some(response) = stream.next().await {
+            use base64::{engine::general_purpose, Engine as _};
             use solana_account_decoder::UiAccountData;
-            use base64::{Engine as _, engine::general_purpose};
 
             let bytes: Vec<u8> = match &response.value.data {
-                UiAccountData::Binary(encoded_data, _) | UiAccountData::LegacyBinary(encoded_data) => {
+                UiAccountData::Binary(encoded_data, _)
+                | UiAccountData::LegacyBinary(encoded_data) => {
                     match general_purpose::STANDARD.decode(encoded_data) {
                         Ok(data) => data,
                         Err(e) => {
@@ -515,9 +506,11 @@ impl TreasuryWebSocketSubscriber {
 
             match self.parse_treasury_update(&bytes) {
                 Ok(update) => {
-                    debug!("💎 Treasury update: Motherlode={:.2} ORE, Total minted={:.2} ORE",
-                          update.motherlode_balance as f64 / 1e11,
-                          update.total_minted as f64 / 1e11);
+                    debug!(
+                        "💎 Treasury update: Motherlode={:.2} ORE, Total minted={:.2} ORE",
+                        update.motherlode_balance as f64 / 1e11,
+                        update.total_minted as f64 / 1e11
+                    );
                     let _ = tx.send(update);
                 }
                 Err(e) => {
@@ -537,7 +530,10 @@ impl TreasuryWebSocketSubscriber {
         // [24-32]: total_minted
 
         if data.len() < 32 {
-            return Err(anyhow!("Treasury account data too small: {} bytes", data.len()));
+            return Err(anyhow!(
+                "Treasury account data too small: {} bytes",
+                data.len()
+            ));
         }
 
         let motherlode_balance = u64::from_le_bytes(data[16..24].try_into()?);
@@ -551,9 +547,7 @@ impl TreasuryWebSocketSubscriber {
 }
 
 /// Spawn Treasury WebSocket subscriber task
-pub fn spawn_treasury_subscriber(
-    ws_url: String,
-) -> Result<broadcast::Receiver<TreasuryUpdate>> {
+pub fn spawn_treasury_subscriber(ws_url: String) -> Result<broadcast::Receiver<TreasuryUpdate>> {
     let subscriber = TreasuryWebSocketSubscriber::new(ws_url)?;
 
     let (tx, rx) = broadcast::channel(16);

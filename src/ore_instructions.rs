@@ -31,8 +31,8 @@ pub const CHECKPOINT_FEE: u64 = 10_000; // 0.00001 SOL
 /// Deploy instruction data structure
 #[derive(Debug, Clone)]
 pub struct DeployData {
-    pub amount: [u8; 8],   // u64 in little-endian
-    pub squares: [u8; 4],  // 32-bit mask in little-endian
+    pub amount: [u8; 8],  // u64 in little-endian
+    pub squares: [u8; 4], // 32-bit mask in little-endian
 }
 
 impl DeployData {
@@ -111,14 +111,14 @@ pub fn build_deploy_instruction(
     Ok(Instruction {
         program_id: ore_program_id,
         accounts: vec![
-            AccountMeta::new(signer, true),              // Signer
-            AccountMeta::new(authority, false),          // Authority
-            AccountMeta::new(automation_address, false), // Automation (may be empty)
-            AccountMeta::new(board_address, false),      // Board
-            AccountMeta::new(miner_address, false),      // Miner
-            AccountMeta::new(round_address, false),      // Round
+            AccountMeta::new(signer, true),                       // Signer
+            AccountMeta::new(authority, false),                   // Authority
+            AccountMeta::new(automation_address, false),          // Automation (may be empty)
+            AccountMeta::new(board_address, false),               // Board
+            AccountMeta::new(miner_address, false),               // Miner
+            AccountMeta::new(round_address, false),               // Round
             AccountMeta::new_readonly(system_program::ID, false), // System program
-            AccountMeta::new(entropy_var_address, false), // Entropy VAR
+            AccountMeta::new(entropy_var_address, false),         // Entropy VAR
             AccountMeta::new_readonly(entropy_program_id, false), // Entropy program
         ],
         data: data.to_bytes(),
@@ -150,8 +150,7 @@ pub fn build_checkpoint_instruction(
         Pubkey::find_program_address(&[ROUND, &round_id.to_le_bytes()], &ore_program_id);
 
     // Derive treasury PDA
-    let (treasury_address, _) =
-        Pubkey::find_program_address(&[b"treasury"], &ore_program_id);
+    let (treasury_address, _) = Pubkey::find_program_address(&[b"treasury"], &ore_program_id);
 
     // Build instruction data
     let data = CheckpointData {};
@@ -160,11 +159,11 @@ pub fn build_checkpoint_instruction(
     Ok(Instruction {
         program_id: ore_program_id,
         accounts: vec![
-            AccountMeta::new(signer, true),            // Signer
-            AccountMeta::new(board_address, false),    // Board
-            AccountMeta::new(miner_address, false),    // Miner
-            AccountMeta::new(round_address, false),    // Round
-            AccountMeta::new(treasury_address, false), // Treasury
+            AccountMeta::new(signer, true),                       // Signer
+            AccountMeta::new(board_address, false),               // Board
+            AccountMeta::new(miner_address, false),               // Miner
+            AccountMeta::new(round_address, false),               // Round
+            AccountMeta::new(treasury_address, false),            // Treasury
             AccountMeta::new_readonly(system_program::ID, false), // System program
         ],
         data: data.to_bytes(),
@@ -188,7 +187,8 @@ pub fn get_miner_address(authority: Pubkey) -> Result<Pubkey> {
 /// Derive round PDA for a given round ID
 pub fn get_round_address(round_id: u64) -> Result<Pubkey> {
     let ore_program_id = ORE_PROGRAM_ID.parse::<Pubkey>()?;
-    let (round, _) = Pubkey::find_program_address(&[ROUND, &round_id.to_le_bytes()], &ore_program_id);
+    let (round, _) =
+        Pubkey::find_program_address(&[ROUND, &round_id.to_le_bytes()], &ore_program_id);
     Ok(round)
 }
 
@@ -200,8 +200,8 @@ mod tests {
     fn test_mask_conversion() {
         // Test 25 bool array to 32-bit mask conversion
         let mut squares = [false; 25];
-        squares[0] = true;  // Cell 0
-        squares[5] = true;  // Cell 5
+        squares[0] = true; // Cell 0
+        squares[5] = true; // Cell 5
         squares[24] = true; // Cell 24
 
         let mut mask: u32 = 0;

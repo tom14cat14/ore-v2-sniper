@@ -18,8 +18,8 @@ pub struct DashboardStatus {
     pub bot_running: bool,
     pub paper_trading: bool,
     pub round_id: u64,
-    pub pot_size: f64,  // in SOL
-    pub motherlode_ore: f64,  // in ORE (Motherlode accumulation)
+    pub pot_size: f64,       // in SOL
+    pub motherlode_ore: f64, // in ORE (Motherlode accumulation)
     pub reset_slot: u64,
     pub current_slot: u64,
     pub cells_claimed: usize,
@@ -39,7 +39,7 @@ pub struct DashboardStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BoardStatus {
-    pub pot_size: f64,  // in SOL
+    pub pot_size: f64, // in SOL
     pub cells: Vec<CellStatus>,
 }
 
@@ -76,11 +76,15 @@ pub struct DashboardWriter {
     events: Vec<DashboardEvent>,
 }
 
+impl Default for DashboardWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DashboardWriter {
     pub fn new() -> Self {
-        Self {
-            events: Vec::new(),
-        }
+        Self { events: Vec::new() }
     }
 
     /// Write current status to file
@@ -121,12 +125,16 @@ impl DashboardWriter {
             total_earned: stats.total_earned_sol,
             board: BoardStatus {
                 pot_size: pot_size_lamports as f64 / 1e9,
-                cells: board.cells.iter().map(|cell| CellStatus {
-                    id: cell.id,
-                    cost_lamports: cell.cost_lamports,
-                    claimed: cell.claimed,
-                    difficulty: cell.difficulty,
-                }).collect(),
+                cells: board
+                    .cells
+                    .iter()
+                    .map(|cell| CellStatus {
+                        id: cell.id,
+                        cost_lamports: cell.cost_lamports,
+                        claimed: cell.claimed,
+                        difficulty: cell.difficulty,
+                    })
+                    .collect(),
             },
         };
 
@@ -183,17 +191,18 @@ impl DashboardWriter {
         let events_path = Path::new(EVENTS_FILE);
         if events_path.exists() {
             match File::open(events_path) {
-                Ok(file) => {
-                    match serde_json::from_reader::<_, DashboardEvents>(file) {
-                        Ok(events_data) => {
-                            self.events = events_data.events;
-                            debug!("📋 Loaded {} existing events from dashboard", self.events.len());
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse dashboard events: {}", e);
-                        }
+                Ok(file) => match serde_json::from_reader::<_, DashboardEvents>(file) {
+                    Ok(events_data) => {
+                        self.events = events_data.events;
+                        debug!(
+                            "📋 Loaded {} existing events from dashboard",
+                            self.events.len()
+                        );
                     }
-                }
+                    Err(e) => {
+                        warn!("Failed to parse dashboard events: {}", e);
+                    }
+                },
                 Err(e) => {
                     warn!("Failed to open dashboard events file: {}", e);
                 }

@@ -1,9 +1,9 @@
 // jupiter_price.rs — Jupiter Price API client for ORE/SOL price
 // Fetches real-time ORE price in SOL from Jupiter aggregator
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 const ORE_MINT: &str = "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp";
 const SOL_MINT: &str = "So11111111111111111111111111111111111111112";
@@ -15,9 +15,9 @@ type JupiterPriceResponse = std::collections::HashMap<String, PriceData>;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PriceData {
-    usd_price: f64,       // Price in USD
-    block_id: u64,        // Block ID
-    decimals: u8,         // Token decimals
+    usd_price: f64,        // Price in USD
+    block_id: u64,         // Block ID
+    decimals: u8,          // Token decimals
     price_change_24h: f64, // 24h price change %
 }
 
@@ -32,7 +32,8 @@ pub async fn fetch_ore_price() -> Result<f64> {
         .timeout(std::time::Duration::from_secs(5))
         .build()?;
 
-    let response = client.get(&url)
+    let response = client
+        .get(&url)
         .send()
         .await
         .map_err(|e| anyhow!("Failed to fetch prices: {}", e))?;
@@ -41,24 +42,30 @@ pub async fn fetch_ore_price() -> Result<f64> {
         return Err(anyhow!("Jupiter API returned error: {}", response.status()));
     }
 
-    let price_data: JupiterPriceResponse = response.json()
+    let price_data: JupiterPriceResponse = response
+        .json()
         .await
         .map_err(|e| anyhow!("Failed to parse Jupiter response: {}", e))?;
 
     // Get ORE price in USD
-    let ore_usd = price_data.get(ORE_MINT)
+    let ore_usd = price_data
+        .get(ORE_MINT)
         .ok_or_else(|| anyhow!("ORE price not found in response"))?
         .usd_price;
 
     // Get SOL price in USD
-    let sol_usd = price_data.get(SOL_MINT)
+    let sol_usd = price_data
+        .get(SOL_MINT)
         .ok_or_else(|| anyhow!("SOL price not found in response"))?
         .usd_price;
 
     // Calculate ORE price in SOL
     let ore_per_sol = ore_usd / sol_usd;
 
-    info!("💰 ORE Price: {:.8} SOL (ORE=${:.4}, SOL=${:.2})", ore_per_sol, ore_usd, sol_usd);
+    info!(
+        "💰 ORE Price: {:.8} SOL (ORE=${:.4}, SOL=${:.2})",
+        ore_per_sol, ore_usd, sol_usd
+    );
 
     Ok(ore_per_sol)
 }
@@ -70,12 +77,18 @@ pub struct OrePriceFetcher {
     cache_duration: std::time::Duration,
 }
 
+impl Default for OrePriceFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OrePriceFetcher {
     pub fn new() -> Self {
         Self {
             cached_price: 0.0,
             last_update: std::time::Instant::now() - std::time::Duration::from_secs(3600),
-            cache_duration: std::time::Duration::from_secs(30),  // 30s cache
+            cache_duration: std::time::Duration::from_secs(30), // 30s cache
         }
     }
 
@@ -91,9 +104,9 @@ impl OrePriceFetcher {
                 Err(e) => {
                     warn!("Failed to fetch ORE price, using cached: {}", e);
                     if self.cached_price > 0.0 {
-                        Ok(self.cached_price)  // Use stale cache on error
+                        Ok(self.cached_price) // Use stale cache on error
                     } else {
-                        Err(e)  // No cache available
+                        Err(e) // No cache available
                     }
                 }
             }
@@ -104,7 +117,8 @@ impl OrePriceFetcher {
 
     /// Force refresh price (ignore cache)
     pub async fn refresh(&mut self) -> Result<f64> {
-        self.last_update = std::time::Instant::now() - self.cache_duration - std::time::Duration::from_secs(1);
+        self.last_update =
+            std::time::Instant::now() - self.cache_duration - std::time::Duration::from_secs(1);
         self.get_price().await
     }
 }
@@ -114,7 +128,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore]  // Requires network
+    #[ignore] // Requires network
     async fn test_fetch_ore_price() {
         match fetch_ore_price().await {
             Ok(price) => {

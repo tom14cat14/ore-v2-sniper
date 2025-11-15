@@ -10,29 +10,29 @@ pub struct OreConfig {
     pub ore_program_id: String,
 
     // Strategy parameters
-    pub min_ev_percentage: f64,           // Minimum expected value (default: 0% = any +EV)
-    pub snipe_window_seconds: u64,        // Window before reset to snipe (default: 3s)
-    pub reset_interval_seconds: u64,      // Ore grid reset interval (default: 60s)
-    pub ore_price_sol: f64,               // Fallback Ore price in SOL
+    pub min_ev_percentage: f64, // Minimum expected value (default: 0% = any +EV)
+    pub snipe_window_seconds: u64, // Window before reset to snipe (default: 3s)
+    pub reset_interval_seconds: u64, // Ore grid reset interval (default: 60s)
+    pub ore_price_sol: f64,     // Fallback Ore price in SOL
 
     // Multi-cell portfolio strategy
-    pub min_cells_per_round: u32,         // Minimum cells to buy (default: 1)
-    pub max_cells_per_round: u32,         // Maximum cells to buy (default: 25 = full board)
-    pub target_cells_per_round: u32,      // Target cells at medium bankroll (default: 5)
-    pub max_cost_per_round_sol: f64,      // Max total cost per round (default: 0.02 SOL)
-    pub adaptive_scaling: bool,           // Enable adaptive cell count based on bankroll
-    pub scale_threshold_low_sol: f64,     // Bankroll to scale to target_cells (default: 0.1 SOL)
-    pub scale_threshold_high_sol: f64,    // Bankroll to scale to max_cells (default: 1.0 SOL)
+    pub min_cells_per_round: u32,    // Minimum cells to buy (default: 1)
+    pub max_cells_per_round: u32,    // Maximum cells to buy (default: 25 = full board)
+    pub target_cells_per_round: u32, // Target cells at medium bankroll (default: 5)
+    pub max_cost_per_round_sol: f64, // Max total cost per round (default: 0.02 SOL)
+    pub adaptive_scaling: bool,      // Enable adaptive cell count based on bankroll
+    pub scale_threshold_low_sol: f64, // Bankroll to scale to target_cells (default: 0.1 SOL)
+    pub scale_threshold_high_sol: f64, // Bankroll to scale to max_cells (default: 1.0 SOL)
 
     // Safety limits
-    pub max_claim_cost_sol: f64,          // Maximum cost per claim (default: 0.05 SOL)
-    pub max_daily_claims: u32,            // Daily claim limit (default: 100)
-    pub max_daily_loss_sol: f64,          // Daily loss limit (default: 0.5 SOL)
-    pub min_wallet_balance_sol: f64,      // Minimum wallet balance to maintain (default: 0.1 SOL)
+    pub max_claim_cost_sol: f64, // Maximum cost per claim (default: 0.05 SOL)
+    pub max_daily_claims: u32,   // Daily claim limit (default: 100)
+    pub max_daily_loss_sol: f64, // Daily loss limit (default: 0.5 SOL)
+    pub min_wallet_balance_sol: f64, // Minimum wallet balance to maintain (default: 0.1 SOL)
 
     // Jito settings
     pub jito_endpoint: String,
-    pub jito_tip_lamports: u64,           // Base tip (default: 50,000 lamports)
+    pub jito_tip_lamports: u64, // Base tip (default: 50,000 lamports)
 
     // RPC settings
     pub rpc_url: String,
@@ -46,16 +46,16 @@ pub struct OreConfig {
     pub enable_real_trading: bool,
 
     // Testing/Debug flags
-    pub force_test_mode: bool,            // Force test execution bypassing EV checks (default: false)
-    pub execute_once_and_exit: bool,      // Execute once then exit (default: false)
+    pub force_test_mode: bool, // Force test execution bypassing EV checks (default: false)
+    pub execute_once_and_exit: bool, // Execute once then exit (default: false)
 
     // ShredStream (optional - for timing precision)
     pub shredstream_endpoint: Option<String>,
     pub use_shredstream_timing: bool,
 
     // Performance
-    pub polling_interval_ms: u64,         // Grid polling frequency (default: 100ms)
-    pub max_retries: u32,                 // Max retries per bundle (default: 3)
+    pub polling_interval_ms: u64, // Grid polling frequency (default: 100ms)
+    pub max_retries: u32,         // Max retries per bundle (default: 3)
 }
 
 impl OreConfig {
@@ -97,8 +97,8 @@ impl OreConfig {
             max_cost_per_round_sol: env::var("MAX_COST_PER_ROUND_SOL")
                 .unwrap_or_else(|_| "0.02".to_string())
                 .parse()?,
-            adaptive_scaling: env::var("ADAPTIVE_SCALING")
-                .unwrap_or_else(|_| "true".to_string()) == "true",
+            adaptive_scaling: env::var("ADAPTIVE_SCALING").unwrap_or_else(|_| "true".to_string())
+                == "true",
             scale_threshold_low_sol: env::var("SCALE_THRESHOLD_LOW_SOL")
                 .unwrap_or_else(|_| "0.1".to_string())
                 .parse()?,
@@ -138,21 +138,24 @@ impl OreConfig {
                 .expect("WALLET_PRIVATE_KEY must be set"),
 
             // Paper trading
-            paper_trading: env::var("PAPER_TRADING")
-                .unwrap_or_else(|_| "true".to_string()) == "true",
+            paper_trading: env::var("PAPER_TRADING").unwrap_or_else(|_| "true".to_string())
+                == "true",
             enable_real_trading: env::var("ENABLE_REAL_TRADING")
-                .unwrap_or_else(|_| "false".to_string()) == "true",
+                .unwrap_or_else(|_| "false".to_string())
+                == "true",
 
             // Testing/Debug flags
-            force_test_mode: env::var("FORCE_TEST_MODE")
-                .unwrap_or_else(|_| "false".to_string()) == "true",
+            force_test_mode: env::var("FORCE_TEST_MODE").unwrap_or_else(|_| "false".to_string())
+                == "true",
             execute_once_and_exit: env::var("EXECUTE_ONCE_AND_EXIT")
-                .unwrap_or_else(|_| "false".to_string()) == "true",
+                .unwrap_or_else(|_| "false".to_string())
+                == "true",
 
             // ShredStream (optional)
             shredstream_endpoint: env::var("SHREDSTREAM_ENDPOINT").ok(),
             use_shredstream_timing: env::var("USE_SHREDSTREAM_TIMING")
-                .unwrap_or_else(|_| "false".to_string()) == "true",
+                .unwrap_or_else(|_| "false".to_string())
+                == "true",
 
             // Performance
             polling_interval_ms: env::var("POLLING_INTERVAL_MS")
