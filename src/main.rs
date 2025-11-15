@@ -1,6 +1,6 @@
 use anyhow::Result;
-use ore_sniper::{OreConfig, OreBoardSniper};
-use tracing::{info, error};
+use ore_sniper::{OreBoardSniper, OreConfig};
+use tracing::{error, info};
 use tracing_subscriber;
 
 #[tokio::main]
@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into())
+                .add_directive(tracing::Level::INFO.into()),
         )
         .init();
 
@@ -62,7 +62,10 @@ async fn main() -> Result<()> {
             info!("   Failed: {}", stats.failed_snipes);
             info!("   Total spent: {:.6} SOL", stats.total_spent_sol);
             info!("   Total earned: {:.6} SOL", stats.total_earned_sol);
-            info!("   Net profit: {:.6} SOL", stats.total_earned_sol - stats.total_spent_sol);
+            info!(
+                "   Net profit: {:.6} SOL",
+                stats.total_earned_sol - stats.total_spent_sol
+            );
 
             Err(e)
         }
@@ -71,12 +74,21 @@ async fn main() -> Result<()> {
 
 fn print_config_summary(config: &OreConfig) {
     info!("⚙️  Configuration Summary:");
-    info!("   Mode: {}", if config.paper_trading { "📝 PAPER TRADING" } else { "💰 LIVE TRADING" });
+    info!(
+        "   Mode: {}",
+        if config.paper_trading {
+            "📝 PAPER TRADING"
+        } else {
+            "💰 LIVE TRADING"
+        }
+    );
     info!("   Min EV: {:.1}%", config.min_ev_percentage);
     info!("   Snipe window: {:.1}s before reset", 2.8);
     info!("   Max claim cost: {:.4} SOL", config.max_claim_cost_sol);
-    info!("   Daily limits: {} claims, {:.2} SOL max loss",
-        config.max_daily_claims, config.max_daily_loss_sol);
+    info!(
+        "   Daily limits: {} claims, {:.2} SOL max loss",
+        config.max_daily_claims, config.max_daily_loss_sol
+    );
     info!("   Jito endpoint: {}", config.jito_endpoint);
     info!("   ShredStream: ✅ Native integration");
 }

@@ -18,10 +18,13 @@ pub struct DashboardStatus {
     pub bot_running: bool,
     pub paper_trading: bool,
     pub round_id: u64,
-    pub pot_size: f64,  // in SOL
-    pub motherlode_ore: f64,  // in ORE (Motherlode accumulation)
+    pub pot_size: f64,       // in SOL
+    pub motherlode_ore: f64, // in ORE (Motherlode accumulation)
+    pub ore_price_sol: f64,  // Live ORE price in SOL from Jupiter
+    pub ore_price_usd: f64,  // Live ORE/USD price from Jupiter
     pub reset_slot: u64,
     pub current_slot: u64,
+    pub time_remaining_seconds: f64, // Time until reset (countdown from 60s)
     pub cells_claimed: usize,
     pub wallet_balance: f64,
     pub wallet_address: String,
@@ -39,14 +42,15 @@ pub struct DashboardStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BoardStatus {
-    pub pot_size: f64,  // in SOL
+    pub pot_size: f64, // in SOL
     pub cells: Vec<CellStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellStatus {
     pub id: u8,
-    pub cost_lamports: u64,
+    pub cost_lamports: u64, // DEPRECATED - misleading, kept for backwards compatibility
+    pub deployed_lamports: u64, // CRITICAL: Total SOL deployed to this cell (needed for EV calculations)
     pub claimed: bool,
     pub difficulty: u64,
 }
@@ -78,9 +82,7 @@ pub struct DashboardWriter {
 
 impl DashboardWriter {
     pub fn new() -> Self {
-        Self {
-            events: Vec::new(),
-        }
+        Self { events: Vec::new() }
     }
 
     /// Write current status to file
@@ -96,8 +98,14 @@ impl DashboardWriter {
         shredstream_connected: bool,
         pot_size_lamports: u64,
         motherlode_ore: f64,
+        ore_price_sol: f64,
+        ore_price_usd: f64,
     ) {
         let cells_claimed = board.cells.iter().filter(|c| c.claimed).count();
+
+        // Calculate time remaining until reset (countdown from ~60s)
+        let slots_remaining = board.reset_slot.saturating_sub(board.current_slot) as f64;
+        let time_remaining_seconds = (slots_remaining * 0.4).max(0.0); // 0.4s per slot
 
         let status = DashboardStatus {
             bot_running: true,
@@ -105,8 +113,11 @@ impl DashboardWriter {
             round_id: board.round_id,
             pot_size: pot_size_lamports as f64 / 1e9,
             motherlode_ore,
+            ore_price_sol,
+            ore_price_usd,
             reset_slot: board.reset_slot,
             current_slot: board.current_slot,
+            time_remaining_seconds,
             cells_claimed,
             wallet_balance: stats.last_balance_check,
             wallet_address: wallet_address.to_string(),
@@ -121,12 +132,17 @@ impl DashboardWriter {
             total_earned: stats.total_earned_sol,
             board: BoardStatus {
                 pot_size: pot_size_lamports as f64 / 1e9,
-                cells: board.cells.iter().map(|cell| CellStatus {
-                    id: cell.id,
-                    cost_lamports: cell.cost_lamports,
-                    claimed: cell.claimed,
-                    difficulty: cell.difficulty,
-                }).collect(),
+                cells: board
+                    .cells
+                    .iter()
+                    .map(|cell| CellStatus {
+                        id: cell.id,
+                        cost_lamports: cell.cost_lamports, // Kept for backwards compatibility
+                        deployed_lamports: cell.deployed_lamports, // CRITICAL: Total SOL on cell for EV calculations
+                        claimed: cell.claimed,
+                        difficulty: cell.difficulty,
+                    })
+                    .collect(),
             },
         };
 
@@ -183,17 +199,18 @@ impl DashboardWriter {
         let events_path = Path::new(EVENTS_FILE);
         if events_path.exists() {
             match File::open(events_path) {
-                Ok(file) => {
-                    match serde_json::from_reader::<_, DashboardEvents>(file) {
-                        Ok(events_data) => {
-                            self.events = events_data.events;
-                            debug!("📋 Loaded {} existing events from dashboard", self.events.len());
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse dashboard events: {}", e);
-                        }
+                Ok(file) => match serde_json::from_reader::<_, DashboardEvents>(file) {
+                    Ok(events_data) => {
+                        self.events = events_data.events;
+                        debug!(
+                            "📋 Loaded {} existing events from dashboard",
+                            self.events.len()
+                        );
                     }
-                }
+                    Err(e) => {
+                        warn!("Failed to parse dashboard events: {}", e);
+                    }
+                },
                 Err(e) => {
                     warn!("Failed to open dashboard events file: {}", e);
                 }

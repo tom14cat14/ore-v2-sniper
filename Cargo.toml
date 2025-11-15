@@ -36,6 +36,7 @@ solana-client = "2.1"         # RPC client
 solana-account-decoder = "2.1"  # Account decoder for UiAccountData
 solana-stream-sdk = "0.5.1"   # ShredStream gRPC client
 solana-entry = "2.1"          # Entry deserialization
+tonic = "0.12"                # gRPC types (for ShredStream, matches solana-stream-sdk)
 bs58 = "0.5"
 hex = "0.4"
 base64 = "0.21"

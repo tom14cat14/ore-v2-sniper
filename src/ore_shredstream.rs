@@ -1,14 +1,18 @@
 // ore_shredstream.rs — ShredStream processor for Ore V2 lottery bot
 // Monitors Ore program for Deploy and BoardReset events
+//
+// ARCHITECTURE: Direct stream processing (like MEV bot)
+// - NO tokio::spawn (prevents 30s idle timeout issue)
+// - NO broadcast channel (process stream directly)
+// - process() polls stream synchronously and returns events
 
 use anyhow::Result;
 use futures::StreamExt;
 use solana_entry::entry::Entry;
 use solana_stream_sdk::ShredstreamClient;
-use std::sync::Arc;
+use std::pin::Pin;
 use std::time::Instant;
-use tokio::sync::{RwLock, broadcast};
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 use crate::ore_instructions::ORE_PROGRAM_ID;
 
@@ -19,7 +23,11 @@ pub enum OreEvent {
     BoardReset { slot: u64 },
 
     /// Cell deployed to (claimed)
-    CellDeployed { cell_id: u8, authority: String, amount_lamports: u64 },
+    CellDeployed {
+        cell_id: u8,
+        authority: String,
+        amount_lamports: u64,
+    },
 
     /// Current slot update
     SlotUpdate { slot: u64 },
@@ -28,9 +36,19 @@ pub enum OreEvent {
 /// ShredStream processor for Ore V2 lottery
 pub struct OreShredStreamProcessor {
     pub endpoint: String,
-    event_rx: Option<broadcast::Receiver<(u64, Vec<Entry>)>>,
-    current_slot: Arc<RwLock<u64>>,
+    client: Option<ShredstreamClient>,
+    stream: Option<
+        Pin<
+            Box<
+                dyn futures::Stream<
+                        Item = Result<solana_stream_sdk::shredstream_proto::Entry, tonic::Status>,
+                    > + Send,
+            >,
+        >,
+    >,
+    current_slot: u64,
     initialized: bool,
+    entries_processed: u64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -44,13 +62,15 @@ impl OreShredStreamProcessor {
     pub fn new(endpoint: String) -> Self {
         Self {
             endpoint,
-            event_rx: None,
-            current_slot: Arc::new(RwLock::new(0)),
+            client: None,
+            stream: None,
+            current_slot: 0,
             initialized: false,
+            entries_processed: 0,
         }
     }
 
-    /// Initialize persistent gRPC-over-HTTPS connection to ShredStream
+    /// Initialize connection to ShredStream (called once)
     pub async fn initialize(&mut self) -> Result<()> {
         if self.initialized {
             return Ok(());
@@ -58,95 +78,36 @@ impl OreShredStreamProcessor {
 
         info!("🔌 Initializing ShredStream for Ore V2 lottery monitoring");
         info!("📡 Target program: {}", ORE_PROGRAM_ID);
+        info!("📡 Endpoint: {}", self.endpoint);
 
-        // Connect to ShredStream via gRPC-over-HTTPS
-        let mut client = ShredstreamClient::connect(&self.endpoint).await
+        // Connect to ShredStream
+        info!("🔌 Connecting to ShredStream...");
+        let mut client = ShredstreamClient::connect(&self.endpoint)
+            .await
             .map_err(|e| anyhow::anyhow!("ShredStream connection failed: {}", e))?;
-
         info!("✅ ShredStream connection established");
 
-        info!("📡 Subscribing to ShredStream for all entries (filter Ore events locally)");
-
-        // Subscribe to ALL entries (no filtering - per ShredStream Service working implementation)
-        // Account-based filtering appears unreliable with ERPC ShredStream
-        // We filter for Ore program transactions in parse_ore_transaction() instead
+        // Subscribe to ALL entries (no filtering - filter locally for Ore program)
+        info!("📡 Subscribing to ShredStream entries...");
         let request = ShredstreamClient::create_empty_entries_request();
+        let stream = client
+            .subscribe_entries(request)
+            .await
+            .map_err(|e| anyhow::anyhow!("ShredStream subscribe failed: {}", e))?;
+        info!("✅ Subscribed to ShredStream (will filter Ore V2 events locally)");
 
-        let mut stream = client.subscribe_entries(request).await?;
-        info!("📡 Subscribed to ShredStream (will filter Ore V2 events locally)");
-
-        // Create broadcast channel for fan-out to multiple consumers (snipe + auto-claim)
-        // Capacity 100 = buffer 100 slot updates before dropping old ones
-        let (tx, rx) = broadcast::channel(100);
-        self.event_rx = Some(rx);
-
-        let current_slot = self.current_slot.clone();
-
-        // CRITICAL: Spawn task to actively poll the stream
-        // Streams are LAZY and require active consumption via tokio::spawn
-        // This is the fix - don't wait for first message, just spawn and poll!
-        tokio::spawn(async move {
-            let mut entries_processed = 0u64;
-            info!("🚀 Background Ore ShredStream processor started (actively polling)");
-
-            loop {
-                match stream.next().await {
-                    Some(slot_entry_result) => {
-                        match slot_entry_result {
-                            Ok(slot_entry) => {
-                                let slot = slot_entry.slot;
-
-                                // Log first few slot updates to verify stream is working
-                                if entries_processed < 5 {
-                                    info!("📡 Received slot {} with {} bytes of entry data",
-                                          slot, slot_entry.entries.len());
-                                }
-
-                                // Update current slot
-                                {
-                                    let mut current = current_slot.write().await;
-                                    *current = slot;
-                                }
-
-                                // Deserialize entries from binary data
-                                match bincode::deserialize::<Vec<Entry>>(&slot_entry.entries) {
-                                    Ok(entries) => {
-                                        let entry_count = entries.len();
-                                        entries_processed += entry_count as u64;
-
-                                        // Log entry counts
-                                        if entry_count > 0 || entries_processed < 10 {
-                                            info!("📦 Slot {}: {} entries ({} total processed)",
-                                                  slot, entry_count, entries_processed);
-                                        }
-
-                                        // Broadcast to all receivers (ignore send errors - no receivers or channel full)
-                                        let _ = tx.send((slot, entries));
-                                    }
-                                    Err(e) => {
-                                        warn!("⚠️ Failed to deserialize entries: {}", e);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                warn!("⚠️ ShredStream error: {}", e);
-                            }
-                        }
-                    }
-                    None => {
-                        warn!("🛑 ShredStream ended: stream returned None after {} entries", entries_processed);
-                        break;
-                    }
-                }
-            }
-        });
-
+        // Store client and stream (Pin+Box for trait object)
+        self.client = Some(client);
+        self.stream = Some(Box::pin(stream));
         self.initialized = true;
-        info!("✅ Ore ShredStream processor initialized with broadcast channel");
+
+        info!("✅ Ore ShredStream processor initialized (direct processing mode)");
         Ok(())
     }
 
     /// Process ShredStream data and extract Ore events
+    /// NOTE: This polls the stream DIRECTLY (no spawn, no channel)
+    /// Returns immediately with events from the next stream item
     pub async fn process(&mut self) -> Result<OreStreamEvent> {
         let start = Instant::now();
 
@@ -155,74 +116,128 @@ impl OreShredStreamProcessor {
             self.initialize().await?;
         }
 
-        // Get current slot
-        let current_slot = *self.current_slot.read().await;
+        // Get stream reference
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("ShredStream not initialized"))?;
 
-        // Try to receive from broadcast channel (non-blocking)
-        if let Some(ref mut rx) = self.event_rx {
-            match rx.try_recv() {
-                Ok((slot, entries)) => {
-                    let mut events = Vec::new();
+        // Poll stream for next entry (BLOCKING - waits for data)
+        // Auto-reconnect on None (30s idle timeout from server)
+        match tokio::time::timeout(std::time::Duration::from_secs(35), stream.next()).await {
+            Ok(Some(slot_entry_result)) => {
+                match slot_entry_result {
+                    Ok(slot_entry) => {
+                        let slot = slot_entry.slot;
+                        self.current_slot = slot;
 
-                    // Add slot update event
-                    events.push(OreEvent::SlotUpdate { slot });
+                        // Log first few entries to verify streaming
+                        if self.entries_processed < 5 {
+                            info!(
+                                "📡 Received slot {} with {} bytes of entry data",
+                                slot,
+                                slot_entry.entries.len()
+                            );
+                        }
 
-                    // Parse entries for Ore program events
-                    for entry in &entries {
-                        for tx in &entry.transactions {
-                            // Extract Ore events from transaction logs
-                            if let Some(mut ore_events) = self.parse_ore_transaction(tx) {
-                                // Fill in slot for BoardReset events
-                                for event in &mut ore_events {
-                                    if let OreEvent::BoardReset { slot: event_slot } = event {
-                                        *event_slot = slot;
+                        // Deserialize entries from binary data
+                        match bincode::deserialize::<Vec<Entry>>(&slot_entry.entries) {
+                            Ok(entries) => {
+                                let entry_count = entries.len();
+                                self.entries_processed += entry_count as u64;
+
+                                // Log entry counts for first few or when non-empty
+                                if entry_count > 0 || self.entries_processed < 10 {
+                                    debug!(
+                                        "📦 Slot {}: {} entries ({} total processed)",
+                                        slot, entry_count, self.entries_processed
+                                    );
+                                }
+
+                                // Parse entries for Ore events
+                                let mut events = vec![OreEvent::SlotUpdate { slot }];
+
+                                for entry in &entries {
+                                    for tx in &entry.transactions {
+                                        if let Some(mut ore_events) = self.parse_ore_transaction(tx)
+                                        {
+                                            // Fill in slot for BoardReset events
+                                            for event in &mut ore_events {
+                                                if let OreEvent::BoardReset { slot: event_slot } =
+                                                    event
+                                                {
+                                                    *event_slot = slot;
+                                                }
+                                            }
+                                            events.extend(ore_events);
+                                        }
                                     }
                                 }
-                                events.extend(ore_events);
+
+                                let latency_us = start.elapsed().as_micros() as f64;
+
+                                if events.len() > 1 {
+                                    // More than just SlotUpdate
+                                    debug!(
+                                        "🎲 Ore events detected: {} events in slot {}",
+                                        events.len() - 1,
+                                        slot
+                                    );
+                                }
+
+                                Ok(OreStreamEvent {
+                                    events,
+                                    latency_us,
+                                    current_slot: slot,
+                                })
+                            }
+                            Err(e) => {
+                                warn!("⚠️ Failed to deserialize entries: {}", e);
+                                // Return slot update even if deserialization fails
+                                Ok(OreStreamEvent {
+                                    events: vec![OreEvent::SlotUpdate { slot }],
+                                    latency_us: start.elapsed().as_micros() as f64,
+                                    current_slot: slot,
+                                })
                             }
                         }
                     }
-
-                    let latency_us = start.elapsed().as_micros() as f64;
-
-                    if !events.is_empty() {
-                        debug!("🎲 Ore events detected: {} events in slot {}", events.len(), slot);
+                    Err(e) => {
+                        warn!("⚠️ ShredStream error: {}", e);
+                        Err(anyhow::anyhow!("ShredStream error: {}", e))
                     }
-
-                    Ok(OreStreamEvent {
-                        events,
-                        latency_us,
-                        current_slot,
-                    })
-                }
-                Err(broadcast::error::TryRecvError::Empty) => {
-                    // No new data available (normal case)
-                    Ok(OreStreamEvent {
-                        events: vec![],
-                        latency_us: start.elapsed().as_micros() as f64,
-                        current_slot,
-                    })
-                }
-                Err(broadcast::error::TryRecvError::Lagged(n)) => {
-                    warn!("⚠️ ShredStream lagged by {} messages - processing too slow!", n);
-                    // Channel is lagging but still active, return empty and let next poll catch up
-                    Ok(OreStreamEvent {
-                        events: vec![],
-                        latency_us: start.elapsed().as_micros() as f64,
-                        current_slot,
-                    })
-                }
-                Err(broadcast::error::TryRecvError::Closed) => {
-                    Err(anyhow::anyhow!("ShredStream channel closed - stream disconnected"))
                 }
             }
-        } else {
-            Err(anyhow::anyhow!("ShredStream not initialized"))
+            Ok(None) | Err(_) => {
+                // Stream ended or timeout - auto-reconnect
+                warn!(
+                    "🔄 ShredStream timeout/disconnect after {} entries - reconnecting...",
+                    self.entries_processed
+                );
+
+                // Reset state
+                self.initialized = false;
+                self.client = None;
+                self.stream = None;
+
+                // Reconnect automatically
+                self.initialize().await?;
+
+                // Return empty event after reconnect
+                Ok(OreStreamEvent {
+                    events: vec![],
+                    latency_us: start.elapsed().as_micros() as f64,
+                    current_slot: self.current_slot,
+                })
+            }
         }
     }
 
     /// Parse Ore program transaction for events
-    fn parse_ore_transaction(&self, tx: &solana_sdk::transaction::VersionedTransaction) -> Option<Vec<OreEvent>> {
+    fn parse_ore_transaction(
+        &self,
+        tx: &solana_sdk::transaction::VersionedTransaction,
+    ) -> Option<Vec<OreEvent>> {
         use solana_sdk::message::VersionedMessage;
 
         let mut events = Vec::new();
@@ -279,14 +294,13 @@ impl OreShredStreamProcessor {
                     if ix.data.len() >= 13 {
                         // Parse amount (bytes 1-8, little-endian u64)
                         let amount_lamports = u64::from_le_bytes([
-                            ix.data[1], ix.data[2], ix.data[3], ix.data[4],
-                            ix.data[5], ix.data[6], ix.data[7], ix.data[8]
+                            ix.data[1], ix.data[2], ix.data[3], ix.data[4], ix.data[5], ix.data[6],
+                            ix.data[7], ix.data[8],
                         ]);
 
                         // Parse squares bitmask (little-endian u32)
-                        let squares = u32::from_le_bytes([
-                            ix.data[9], ix.data[10], ix.data[11], ix.data[12]
-                        ]);
+                        let squares =
+                            u32::from_le_bytes([ix.data[9], ix.data[10], ix.data[11], ix.data[12]]);
 
                         // Get authority from accounts (usually first signer)
                         let authority = if !ix.accounts.is_empty() {
@@ -308,7 +322,7 @@ impl OreShredStreamProcessor {
                                 events.push(OreEvent::CellDeployed {
                                     cell_id: cell_id as u8,
                                     authority: authority.clone(),
-                                    amount_lamports
+                                    amount_lamports,
                                 });
                             }
                         }
@@ -342,8 +356,8 @@ impl OreShredStreamProcessor {
     }
 
     /// Get current slot (real-time from ShredStream)
-    pub async fn get_current_slot(&self) -> u64 {
-        *self.current_slot.read().await
+    pub fn get_current_slot(&self) -> u64 {
+        self.current_slot
     }
 }
 
@@ -353,11 +367,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_processor_creation() {
-        let processor = OreShredStreamProcessor::new(
-            "https://shredstream.rpcpool.com:443".to_string()
-        );
+        let processor =
+            OreShredStreamProcessor::new("https://shredstream.rpcpool.com:443".to_string());
 
         assert!(!processor.initialized);
-        assert_eq!(processor.get_current_slot().await, 0);
+        assert_eq!(processor.get_current_slot(), 0);
     }
 }
