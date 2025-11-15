@@ -1,0 +1,41 @@
+# Build artifacts
+target/
+/target
+*.so
+*.dylib
+*.dll
+*.rlib
+Cargo.lock
+
+# Sensitive files - NEVER COMMIT THESE
+.env
+.env.*
+*.env
+!.env.example
+!*.env.example
+wallets/
+*.key
+*.json.enc
+private_keys/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Ore ShredStream Service (conflicts with bot's direct connection)
+ore_shredstream_service/

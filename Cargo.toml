@@ -1,0 +1,74 @@
+[package]
+name = "ore-sniper"
+version = "0.1.0"
+edition = "2021"
+description = "Ore Grid Sniper - EV-based profitable square claiming with Jito bundles"
+publish = false
+
+[[bin]]
+name = "ore_sniper"
+path = "src/main.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { version = "1.21", features = ["rt-multi-thread", "macros", "time", "sync", "net", "fs"] }
+anyhow = "1.0"
+futures = "0.3"
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3.3"
+
+# Time handling
+chrono = "0.4.26"
+
+# Network client with gzip compression
+reqwest = { version = "0.11", features = ["json", "gzip"] }
+
+# Environment variables
+dotenvy = "0.15"
+
+# Solana dependencies
+solana-sdk = "2.1"
+solana-client = "2.1"         # RPC client
+solana-account-decoder = "2.1"  # Account decoder for UiAccountData
+solana-stream-sdk = "0.5.1"   # ShredStream gRPC client
+solana-entry = "2.1"          # Entry deserialization
+tonic = "0.12"                # gRPC types (for ShredStream, matches solana-stream-sdk)
+bs58 = "0.5"
+hex = "0.4"
+base64 = "0.21"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+log = "0.4"
+
+# Rate limiting
+governor = "0.6"
+nonzero_ext = "0.3"
+
+# Parking lot for better performance
+parking_lot = "0.12"
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4"] }
+
+# SPL Token support
+spl-token = "6.0"
+
+# Secure wallet management
+aes-gcm = "0.10"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+
+# Bytes for data handling
+bytes = "1.6"
+
+# Once cell for lazy static
+once_cell = "1.19"
+
+# Atomic arc swap for lock-free updates
+arc-swap = "1.7"
