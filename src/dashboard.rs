@@ -8,8 +8,8 @@ use tracing::{debug, warn};
 
 use crate::ore_board_sniper::{OreBoard, SnipeStats};
 
-const STATUS_FILE: &str = "/tmp/ore_bot_status.json";
-const EVENTS_FILE: &str = "/tmp/ore_bot_events.json";
+const STATUS_FILE: &str = "/home/tom14cat14/ORE/data/status.json";
+const EVENTS_FILE: &str = "/home/tom14cat14/ORE/data/events.json";
 const MAX_EVENTS: usize = 100; // Keep last 100 events
 
 /// Dashboard status structure

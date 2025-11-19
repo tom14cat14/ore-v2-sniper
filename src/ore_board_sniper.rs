@@ -348,6 +348,9 @@ impl OreBoardSniper {
                     }
 
                     BOARD.store(Arc::new(board));
+
+                    // Update dashboard instantly when Round changes (pot size, cell deployments)
+                    self.update_dashboard_status().await;
                 }
                 Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
                 Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
@@ -370,6 +373,9 @@ impl OreBoardSniper {
                     let mut board = BOARD.load().as_ref().clone();
                     board.motherlode_ore = treasury_update.motherlode_balance;
                     BOARD.store(Arc::new(board));
+
+                    // Update dashboard instantly when Motherlode changes
+                    self.update_dashboard_status().await;
                 }
                 Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
                 Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
