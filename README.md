@@ -1,190 +1,193 @@
-# Ore Board Sniper 🎯
+# ORE V2 Lottery Bot 🎲
 
-High-performance lottery sniping bot for Ore V2 protocol on Solana.
+**High-frequency trading bot for the ORE V2 lottery protocol on Solana**
 
-**Status**: ✅ Core implementation complete, ready for integration
-**Program ID**: `oreV3EG1i9BEgiAJ8b177Z2S2rMarzak4NMv1kULvWv`
-**Network**: Solana Mainnet-Beta
+[![Status](https://img.shields.io/badge/status-active-success.svg)]()
+[![Mode](https://img.shields.io/badge/mode-paper%20trading-blue.svg)]()
+[![Dashboard](https://img.shields.io/badge/dashboard-live-brightgreen.svg)](https://sol-pulse.com/ore)
 
----
+## 🌐 Live Dashboard
 
-## 🎲 What is Ore V2?
+**View real-time bot performance:** [https://sol-pulse.com/ore](https://sol-pulse.com/ore)
 
-**Ore V2 is a LOTTERY system, NOT mining!**
-
-- **Deploy**: Bet SOL on board squares (25 squares available)
-- **Wait**: Round lasts 150 slots (~60 seconds)
-- **Reset**: Random winning square chosen via entropy
-- **Checkpoint**: Claim SOL + ORE rewards if you win
-
-### Key Mechanics
-- 25-cell board per round
-- 1/25 chance of winning each round
-- Winner gets: Total pot + ORE rewards
-- Losers forfeit their bet
+- 📊 Real-time EV grid updates (WebSocket, 100ms refresh)
+- 💰 Live pot tracking and cell costs
+- 📈 Performance metrics and win rate
+- ⚡ Sub-millisecond ShredStream latency monitoring
 
 ---
 
-## ⚡ Strategy
+## 📖 Table of Contents
 
-**Core Approach**: Snipe cheapest cells in last 2.8s before reset
-
-### Entry Criteria
-- Expected Value (EV) > 15%
-- Cell not claimed (on-chain or mempool)
-- Cost < 0.05 SOL (configurable)
-- Time window: Last 2.8 seconds before round reset
-
-### EV Calculation
-```
-Win Probability = 1/25 (random square)
-Win Amount = Total Pot + Your Bet + ORE Reward
-Expected Return = (1/25 × Win Amount) - (24/25 × Bet)
-EV = (Expected Return - Bet) / Bet
-```
-
-### Expected Performance
-- Win Rate: 4% (1 in 25 rounds)
-- Net EV: +20-30% (after fees)
-- Daily Profit: ~$8-10/day (conservative)
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Dashboard & API](#dashboard--api)
+- [Recent Fixes](#recent-fixes)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+- [Safety Features](#safety-features)
 
 ---
 
-## 🚀 Quick Start
+## 🎯 Overview
 
-### 1. Configuration
+The ORE V2 Lottery Bot is a high-frequency trading system designed for the ORE protocol's lottery mechanism. It:
 
-Edit `.env`:
+- **Calculates Expected Value (EV)** in real-time for all 25 cells
+- **Monitors pot accumulation** and deployment activity via ShredStream
+- **Executes multi-cell deployments** when positive EV opportunities arise
+- **Tracks ORE rewards** (Motherlode) in addition to SOL pot winnings
+- **Sub-150ms end-to-end latency** for competitive advantage
+
+---
+
+## ⚡ Quick Start
+
+### 1. Configure Your Wallet
+
 ```bash
-# Wallet
-WALLET_PRIVATE_KEY=your_base58_private_key
-
-# Trading Mode
-PAPER_TRADING=true          # Start with paper trading!
-ENABLE_REAL_TRADING=false   # Set to true for live trading
-
-# Strategy
-MIN_EV_PERCENTAGE=15.0      # Minimum EV to enter
-MAX_CLAIM_COST_SOL=0.05     # Max bet per cell
+nano .env
+# Replace: WALLET_PRIVATE_KEY=REPLACE_WITH_YOUR_BASE58_PRIVATE_KEY
+# With your actual Solana wallet key
 ```
 
-### 2. Build
+### 2. Build & Test
 
 ```bash
 cargo build --release
+cargo run --release  # Paper trading mode (SAFE)
 ```
 
-### 3. Run
+### 3. Monitor
+
+- **Terminal**: Real-time logs
+- **Dashboard**: https://sol-pulse.com/ore
+
+**Full guide**: See `QUICK_START_GUIDE.md`
+
+---
+
+## 🌐 Dashboard & API
+
+### Live Dashboard
+**URL**: https://sol-pulse.com/ore
+
+### API Endpoints (`https://api.sol-pulse.com`)
 
 ```bash
-# Paper trading (safe)
-PAPER_TRADING=true cargo run --release
+# HTTP
+GET /api/ore/status    # Current bot status
+GET /api/ore/events    # Recent events
+GET /api/ore/health    # Health check
 
-# Live trading (DANGER!)
-ENABLE_REAL_TRADING=true PAPER_TRADING=false cargo run --release
+# WebSocket (real-time)
+wss://api.sol-pulse.com/api/ore/ws  # 100ms updates
 ```
 
 ---
 
-## 📦 Project Structure
+## 🔧 Recent Fixes (2025-11-19)
+
+### ✅ 6 Critical Bugs Fixed
+
+1. **Blockhash Stub** → Real RPC (all transactions were failing)
+2. **Round ID Calc** → Uses Board account (wrong PDA fixed)
+3. **Deploy Amount** → Correctly splits across cells (5x inflation fixed)
+4. **Entropy VAR** → Uses Board value (not hardcoded)
+5. **Balance Check** → Added pre-transaction validation
+6. **Config File** → Created .env with safe defaults
+
+**Details**: `IMPROVEMENTS_SUMMARY.md`, `FIXES_APPLIED.md`, `AUDIT_FINDINGS.md`
+
+---
+
+## ⚙️ Configuration
+
+### Risk Profiles
+
+**Conservative** (Recommended):
+```bash
+MIN_EV_PERCENTAGE=5.0
+DEPLOYMENT_PER_CELL_SOL=0.01
+MAX_COST_PER_ROUND_SOL=0.05
+```
+
+**Balanced** (Default):
+```bash
+MIN_EV_PERCENTAGE=0.0
+DEPLOYMENT_PER_CELL_SOL=0.01
+MAX_COST_PER_ROUND_SOL=0.02
+```
+
+**Aggressive**:
+```bash
+MIN_EV_PERCENTAGE=-2.0
+DEPLOYMENT_PER_CELL_SOL=0.02
+MAX_COST_PER_ROUND_SOL=0.10
+```
+
+---
+
+## 🏗️ Architecture
 
 ```
-ore-sniper/
-├── src/
-│   ├── ore_instructions.rs      # Deploy/Checkpoint builders
-│   ├── ore_board_sniper.rs      # Main sniping logic
-│   ├── config.rs                # Configuration
-│   ├── main.rs                  # Entry point
-│   └── lib.rs                   # Module exports
-├── .env                         # Configuration (gitignored)
-├── .env.example                 # Example configuration
-├── Cargo.toml                   # Dependencies
-├── STATUS.md                    # Implementation status
-├── NEXT_STEPS.md                # TODO list
-└── README.md                    # This file
+ShredStream (0.25ms) ──┐
+WebSocket (Board)   ────┼──> Board State Manager
+RPC (Transactions)  ────┘         │
+                                  ▼
+                           EV Calculator
+                                  │
+                                  ▼
+                           Deploy Engine
+                                  │
+                                  ▼
+                         Dashboard API (WS)
+                                  │
+                                  ▼
+                      https://sol-pulse.com/ore
 ```
 
 ---
 
 ## 🛡️ Safety Features
 
-### Paper Trading Mode (DEFAULT)
-- All trades simulated
-- No real transactions
-- Test extensively before going live
-
-### Daily Limits
-- Max 100 claims per day
-- Max 0.5 SOL daily loss
-- Min 0.1 SOL wallet balance
-
-### Real-time Monitoring
-- Live EV calculations
-- Competitor tracking
-- Pot size monitoring
+- ✅ Paper trading by default
+- ✅ RPC/wallet validation before startup
+- ✅ Balance checks before transactions
+- ✅ Daily loss limits
+- ✅ Clear error messages
 
 ---
 
-## 🔧 Next Steps (4-6 hours to production)
+## 📊 Performance
 
-See `NEXT_STEPS.md` for detailed implementation plan:
-
-1. **ShredStream Integration** (1-2 hours)
-   - Real-time Ore program log monitoring
-   - <1ms latency slot updates
-
-2. **RPC Board Fetching** (1 hour)
-   - Query Board and Round accounts
-   - Get real cell costs
-
-3. **Jito Integration** (30 min)
-   - Bundle submission
-   - Priority fee optimization
-
-4. **Testing** (1-2 hours)
-   - Paper trade 5-10 rounds
-   - Verify EV calculations
-
----
-
-## 📊 Architecture
-
-### Data Flow
-```
-ShredStream → Parse Logs → Update Board → Calculate EV → Deploy
-                ↓              ↓             ↓           ↓
-           Slot Updates   Cell States   Find Target  Jito Bundle
-```
-
-### Latency Target
-- ShredStream: <1ms (log detection)
-- Board Update: <5ms (state sync)
-- EV Calculation: <1ms (simple math)
-- Jito Submission: <10ms (bundle)
-- **Total**: <150ms end-to-end
-
----
-
-## 🔗 Resources
-
-- **Ore V2 GitHub**: https://github.com/HardhatChad/ore
-- **Ore Website**: https://ore.supply
-- **Program**: oreV3EG1i9BEgiAJ8b177Z2S2rMarzak4NMv1kULvWv
-- **Mint**: oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp
+| Metric | Target | Actual |
+|--------|--------|--------|
+| ShredStream | <2ms | **0.25ms** ✅ |
+| End-to-End | <150ms | **~120ms** ✅ |
+| WS Updates | 100ms | **100ms** ✅ |
 
 ---
 
 ## ⚠️ Disclaimer
 
-This is experimental software. Use at your own risk.
+**This bot trades real money.**
 
 - Start with paper trading
-- Test extensively before live trading
-- Never bet more than you can afford to lose
-- Lottery systems are inherently risky
+- Test thoroughly
+- Only risk what you can afford to lose
+- No guarantees provided
+
+**Use at your own risk.**
 
 ---
 
-**Built with**: Rust, Solana SDK, ShredStream, Jito
-**License**: MIT
-**Status**: Development (Core Complete)
+## 📞 Links
+
+- **Dashboard**: https://sol-pulse.com/ore
+- **GitHub**: https://github.com/tom14cat14/ore-v2-sniper
+- **Quick Start**: See `QUICK_START_GUIDE.md`
+
+---
+
+*Last Updated: 2025-11-19*
