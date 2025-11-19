@@ -38,12 +38,26 @@ async fn main() -> Result<()> {
     // Print configuration summary
     print_config_summary(&config);
 
+    // Perform startup health checks
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    info!("🔍 Performing startup health checks...");
+
+    if let Err(e) = perform_health_checks(&config).await {
+        error!("❌ Health check failed: {}", e);
+        error!("💡 Tip: Check your RPC endpoint and network connection");
+        return Err(e);
+    }
+
+    info!("✅ All health checks passed");
+
     // Create board sniper
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    info!("🔧 Initializing Ore Board Sniper...");
     let mut sniper = OreBoardSniper::new(config).await?;
 
     info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     info!("🚀 Starting Ore Board Sniper...");
-    info!("📊 Strategy: Snipe cheapest cells <2.8s before reset");
+    info!("📊 Strategy: Snipe cheapest cells in final window");
     info!("⚡ Target latency: <150ms E2E");
 
     match sniper.run().await {
@@ -77,18 +91,65 @@ fn print_config_summary(config: &OreConfig) {
     info!(
         "   Mode: {}",
         if config.paper_trading {
-            "📝 PAPER TRADING"
+            "📝 PAPER TRADING (SAFE - No real SOL spent)"
+        } else if config.enable_real_trading {
+            "💰 LIVE TRADING (DANGER - Real money!)"
         } else {
-            "💰 LIVE TRADING"
+            "⚠️  Invalid config - check PAPER_TRADING and ENABLE_REAL_TRADING"
         }
     );
     info!("   Min EV: {:.1}%", config.min_ev_percentage);
-    info!("   Snipe window: {:.1}s before reset", 2.8);
-    info!("   Max claim cost: {:.4} SOL", config.max_claim_cost_sol);
+    info!("   Snipe window: {}s before reset", config.snipe_window_seconds);
+    info!("   Deployment per cell: {:.4} SOL", config.deployment_per_cell_sol);
+    info!("   Max cost per round: {:.4} SOL", config.max_cost_per_round_sol);
     info!(
         "   Daily limits: {} claims, {:.2} SOL max loss",
         config.max_daily_claims, config.max_daily_loss_sol
     );
-    info!("   Jito endpoint: {}", config.jito_endpoint);
-    info!("   ShredStream: ✅ Native integration");
+    info!("   RPC: {}", config.rpc_url);
+    info!(
+        "   ShredStream: {}",
+        if config.use_shredstream_timing {
+            "✅ Enabled"
+        } else {
+            "❌ Disabled"
+        }
+    );
+}
+
+async fn perform_health_checks(config: &OreConfig) -> Result<()> {
+    use solana_client::rpc_client::RpcClient;
+
+    info!("   Checking RPC connection...");
+    let rpc = RpcClient::new(config.rpc_url.clone());
+
+    // Test RPC connection
+    match rpc.get_health() {
+        Ok(_) => info!("   ✅ RPC connection healthy"),
+        Err(e) => {
+            return Err(anyhow::anyhow!("RPC health check failed: {}", e));
+        }
+    }
+
+    // Get current slot to verify RPC is responsive
+    match rpc.get_slot() {
+        Ok(slot) => info!("   ✅ RPC responsive (current slot: {})", slot),
+        Err(e) => {
+            return Err(anyhow::anyhow!("Failed to get current slot: {}", e));
+        }
+    }
+
+    // Validate wallet key format if real trading
+    if config.enable_real_trading {
+        info!("   Checking wallet configuration...");
+        if config.wallet_private_key == "REPLACE_WITH_YOUR_BASE58_PRIVATE_KEY"
+            || config.wallet_private_key.len() < 32 {
+            return Err(anyhow::anyhow!(
+                "Invalid WALLET_PRIVATE_KEY - please set your actual wallet key in .env"
+            ));
+        }
+        info!("   ✅ Wallet configuration looks valid");
+    }
+
+    Ok(())
 }
