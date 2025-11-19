@@ -65,6 +65,7 @@ impl CheckpointData {
 /// * `amount` - Amount of SOL to deploy per square (in lamports)
 /// * `round_id` - Current round ID
 /// * `squares` - 25 bool array (true = deploy to this square)
+/// * `entropy_var` - Entropy VAR address (from Board account, not derived!)
 ///
 /// # Returns
 /// * Solana Instruction ready for bundle
@@ -74,6 +75,7 @@ pub fn build_deploy_instruction(
     amount: u64,
     round_id: u64,
     squares: [bool; 25],
+    entropy_var: Pubkey,
 ) -> Result<Instruction> {
     // Convert 25 bool array to 32-bit mask
     let mut mask: u32 = 0;
@@ -95,12 +97,9 @@ pub fn build_deploy_instruction(
     let (round_address, _) =
         Pubkey::find_program_address(&[ROUND, &round_id.to_le_bytes()], &ore_program_id);
 
-    // Entropy VAR address - derived using entropy API's var_pda function
-    // entropy_api::state::var_pda(board_address, 0)
-    let (entropy_var_address, _) = Pubkey::find_program_address(
-        &[b"var", &board_address.to_bytes(), &0u64.to_le_bytes()],
-        &entropy_program_id,
-    );
+    // CRITICAL FIX: Use entropy_var from Board account instead of deriving it!
+    // The Board account stores the current entropy VAR, which may rotate.
+    // entropy_var parameter is passed from Board WebSocket/RPC data.
 
     // Build instruction data
     let data = DeployData {
@@ -119,7 +118,7 @@ pub fn build_deploy_instruction(
             AccountMeta::new(miner_address, false),               // Miner
             AccountMeta::new(round_address, false),               // Round
             AccountMeta::new_readonly(system_program::ID, false), // System program
-            AccountMeta::new(entropy_var_address, false),         // Entropy VAR
+            AccountMeta::new(entropy_var, false),                 // Entropy VAR (from Board!)
             AccountMeta::new_readonly(entropy_program_id, false), // Entropy program
         ],
         data: data.to_bytes(),

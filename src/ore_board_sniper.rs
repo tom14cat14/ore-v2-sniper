@@ -880,9 +880,21 @@ impl OreBoardSniper {
             .ok_or_else(|| anyhow::anyhow!("Wallet not loaded"))?;
         let authority = wallet.pubkey();
 
-        // Get current round ID
+        // CRITICAL SAFETY CHECK: Verify sufficient wallet balance
+        let wallet_balance = self.check_wallet_balance().await?;
+        let total_needed = total_cost + 0.01; // Add 0.01 SOL for transaction fees
+        if wallet_balance < total_needed {
+            return Err(anyhow::anyhow!(
+                "Insufficient wallet balance: need {:.6} SOL (cost: {:.6} + fees: 0.01), have {:.6} SOL",
+                total_needed, total_cost, wallet_balance
+            ));
+        }
+        info!("✅ Balance check passed: {:.6} SOL available", wallet_balance);
+
+        // Get current round ID from Board account (NOT calculated from slot!)
+        // CRITICAL FIX: round_id must match the Board account, not be calculated
         let board = BOARD.load();
-        let round_id = (board.current_slot / 150);
+        let round_id = board.round_id;
 
         // Build squares array with ALL selected cells set to true
         let mut squares = [false; 25];
@@ -900,7 +912,8 @@ impl OreBoardSniper {
             authority,
             total_amount, // Total amount for all cells
             round_id,
-            squares, // Multiple cells set to true
+            squares,            // Multiple cells set to true
+            board.entropy_var,  // CRITICAL: Use entropy_var from Board account!
         )?;
 
         info!(
@@ -1355,10 +1368,18 @@ pub fn mark_mempool_deploy(cell_id: u8) {
 
 // === HELPER FUNCTIONS ===
 
-/// Fetch blockhash from ShredStream or RPC
+/// Fetch blockhash from RPC
+/// Fixed: Was returning random hash (always failed). Now fetches real blockhash.
 async fn fetch_blockhash_from_shredstream() -> Result<solana_sdk::hash::Hash> {
-    // TODO: Integrate with ShredStream or RPC
-    Ok(solana_sdk::hash::Hash::new_unique())
+    use solana_client::rpc_client::RpcClient;
+    use std::env;
+
+    let rpc_url = env::var("RPC_URL")
+        .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
+
+    let rpc = RpcClient::new(rpc_url);
+    rpc.get_latest_blockhash()
+        .map_err(|e| anyhow::anyhow!("Failed to fetch blockhash from RPC: {}", e))
 }
 
 /// Load wallet from base58 encoded private key
