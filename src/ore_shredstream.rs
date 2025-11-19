@@ -314,15 +314,25 @@ impl OreShredStreamProcessor {
                             "unknown".to_string()
                         };
 
-                        // Log all cells in the bitmask (proportional ownership - track amounts!)
+                        // CRITICAL FIX: amount_lamports is TOTAL for all cells, not per-cell!
+                        // Must divide by number of cells to get amount per cell
+                        let num_cells = squares.count_ones() as u64;
+                        let amount_per_cell = if num_cells > 0 {
+                            amount_lamports / num_cells
+                        } else {
+                            0
+                        };
+
+                        // Log all cells in the bitmask
                         for cell_id in 0..32 {
                             if (squares & (1 << cell_id)) != 0 {
-                                debug!("🎲 Detected Deploy: cell_id={}, amount={:.6} SOL, authority={}",
-                                       cell_id, amount_lamports as f64 / 1e9, &authority[..8]);
+                                debug!("🎲 Detected Deploy: cell_id={}, amount_per_cell={:.6} SOL ({} cells, total={:.6} SOL), authority={}",
+                                       cell_id, amount_per_cell as f64 / 1e9, num_cells,
+                                       amount_lamports as f64 / 1e9, &authority[..8]);
                                 events.push(OreEvent::CellDeployed {
                                     cell_id: cell_id as u8,
                                     authority: authority.clone(),
-                                    amount_lamports,
+                                    amount_lamports: amount_per_cell,  // Per-cell amount, not total!
                                 });
                             }
                         }
