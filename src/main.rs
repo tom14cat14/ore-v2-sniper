@@ -1,7 +1,6 @@
 use anyhow::Result;
 use ore_sniper::{OreBoardSniper, OreConfig};
 use tracing::{error, info};
-use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -99,9 +98,18 @@ fn print_config_summary(config: &OreConfig) {
         }
     );
     info!("   Min EV: {:.1}%", config.min_ev_percentage);
-    info!("   Snipe window: {}s before reset", config.snipe_window_seconds);
-    info!("   Deployment per cell: {:.4} SOL", config.deployment_per_cell_sol);
-    info!("   Max cost per round: {:.4} SOL", config.max_cost_per_round_sol);
+    info!(
+        "   Snipe window: {}s before reset",
+        config.snipe_window_seconds
+    );
+    info!(
+        "   Deployment per cell: {:.4} SOL",
+        config.deployment_per_cell_sol
+    );
+    info!(
+        "   Max cost per round: {:.4} SOL",
+        config.max_cost_per_round_sol
+    );
     info!(
         "   Daily limits: {} claims, {:.2} SOL max loss",
         config.max_daily_claims, config.max_daily_loss_sol
@@ -143,7 +151,8 @@ async fn perform_health_checks(config: &OreConfig) -> Result<()> {
     if config.enable_real_trading {
         info!("   Checking wallet configuration...");
         if config.wallet_private_key == "REPLACE_WITH_YOUR_BASE58_PRIVATE_KEY"
-            || config.wallet_private_key.len() < 32 {
+            || config.wallet_private_key.len() < 32
+        {
             return Err(anyhow::anyhow!(
                 "Invalid WALLET_PRIVATE_KEY - please set your actual wallet key in .env"
             ));
