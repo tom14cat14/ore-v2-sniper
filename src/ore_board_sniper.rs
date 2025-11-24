@@ -792,23 +792,31 @@ impl OreBoardSniper {
         // === Step 2: Calculate rewards if this cell wins (1/25 probability) ===
         let win_prob = 1.0 / 25.0;
 
-        // SOL winnings: Simple formula - your % of pot
-        // Your % = your_sol / total_sol_on_cell
-        // If your cell wins, you get: your_% × pot (after rake)
-        let pot_after_rake = total_pot * (1.0 - rake);
-        let my_sol_if_win = my_fraction * pot_after_rake;
+        // SOL winnings: CORRECT MECHANICS
+        // 1. ONE cell wins (1/25 chance)
+        // 2. ALL pot goes to that winning cell's bettors (NOT split 25 ways!)
+        // 3. Within winning cell, you get: (your_bet / cell_total) × total_pot
+        // 4. 10% rake is taken when you CLAIM from YOUR winnings only
+        //
+        // Example: 100 SOL pot, Cell 1 wins with 10 SOL total (you bet 1 SOL = 10%)
+        // Your winnings = 10% × 100 SOL = 10 SOL
+        // After rake = 10 × 0.9 = 9 SOL
+        let my_sol_before_rake = my_fraction * total_pot; // Your % of ENTIRE pot
+        let my_sol_if_win = my_sol_before_rake * (1.0 - rake); // 10% rake on YOUR winnings
 
-        // ORE winnings: Simple formula - your % of rewards
+        // ORE winnings: Your proportional share of ORE rewards
         // 1. Regular ORE (1 ORE): Goes to ONE random deployer (uniform lottery, NOT proportional)
         //    - If cell has N deployers, you have 1/N chance of getting full 1 ORE
         // 2. Motherlode: your_% × motherlode (when triggered, 1/625 chance)
+        // CRITICAL: 10% rake is applied to ALL winnings (SOL + ORE) when you claim
         let n_deployers_after = (cell.difficulty + 1) as f64; // Existing deployers + us
         let regular_ore_chance = 1.0 / n_deployers_after; // Uniform lottery
-        let regular_ore_value = regular_ore_chance * 1.0 * ore_price; // 1/N chance of 1 ORE
+        let regular_ore_before_rake = regular_ore_chance * 1.0 * ore_price; // 1/N chance of 1 ORE
+        let regular_ore_value = regular_ore_before_rake * (1.0 - rake); // 10% rake
 
         let motherlode_trigger_prob = 1.0 / 625.0; // Motherlode trigger chance
-        let my_motherlode_if_win = my_fraction * motherlode; // Simple: your_% × motherlode
-        let motherlode_value = my_motherlode_if_win * motherlode_trigger_prob * ore_price;
+        let my_motherlode_before_rake = my_fraction * motherlode * ore_price; // Your % × motherlode value
+        let motherlode_value = my_motherlode_before_rake * motherlode_trigger_prob * (1.0 - rake); // 10% rake
 
         let ore_value_if_win = regular_ore_value + motherlode_value;
 
