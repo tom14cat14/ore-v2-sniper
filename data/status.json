@@ -1,1 +1,208 @@
-{"bot_status":"initializing","mode":"paper_trading","last_update":"2025-11-19T02:40:23+00:00"}
+{
+  "bot_running": true,
+  "paper_trading": true,
+  "round_id": 58217,
+  "pot_size": 9.307477452,
+  "motherlode_ore": 90.2,
+  "ore_price_sol": 1.7359506674436507,
+  "ore_price_usd": 242.81303558008645,
+  "reset_slot": 381065428,
+  "current_slot": 381065432,
+  "time_remaining_seconds": 0.0,
+  "cells_claimed": 25,
+  "wallet_balance": 1.0,
+  "wallet_address": "Paper Trading",
+  "shredstream_latency_ms": 0.25,
+  "rpc_latency_ms": 60.0,
+  "entries_processed": 1,
+  "shredstream_connected": true,
+  "rounds_played": 0,
+  "rounds_won": 0,
+  "rounds_lost": 0,
+  "round_win_rate": 0.0,
+  "picks_made": 0,
+  "picks_won": 0,
+  "pick_win_rate": 0.0,
+  "total_spent": 0.0,
+  "total_earned": 0.0,
+  "board": {
+    "pot_size": 9.307477452,
+    "cells": [
+      {
+        "id": 0,
+        "cost_lamports": 365727901,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 372
+      },
+      {
+        "id": 1,
+        "cost_lamports": 374018979,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 361
+      },
+      {
+        "id": 2,
+        "cost_lamports": 384595639,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 373
+      },
+      {
+        "id": 3,
+        "cost_lamports": 386267096,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 371
+      },
+      {
+        "id": 4,
+        "cost_lamports": 344037301,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 353
+      },
+      {
+        "id": 5,
+        "cost_lamports": 390283641,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 350
+      },
+      {
+        "id": 6,
+        "cost_lamports": 368241314,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 364
+      },
+      {
+        "id": 7,
+        "cost_lamports": 363518701,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 359
+      },
+      {
+        "id": 8,
+        "cost_lamports": 381421310,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 365
+      },
+      {
+        "id": 9,
+        "cost_lamports": 383767096,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 356
+      },
+      {
+        "id": 10,
+        "cost_lamports": 361559860,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 368
+      },
+      {
+        "id": 11,
+        "cost_lamports": 393855343,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 382
+      },
+      {
+        "id": 12,
+        "cost_lamports": 381500221,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 382
+      },
+      {
+        "id": 13,
+        "cost_lamports": 374498417,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 363
+      },
+      {
+        "id": 14,
+        "cost_lamports": 342460860,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 364
+      },
+      {
+        "id": 15,
+        "cost_lamports": 379553173,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 365
+      },
+      {
+        "id": 16,
+        "cost_lamports": 377438394,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 373
+      },
+      {
+        "id": 17,
+        "cost_lamports": 384337564,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 362
+      },
+      {
+        "id": 18,
+        "cost_lamports": 370084482,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 362
+      },
+      {
+        "id": 19,
+        "cost_lamports": 370433282,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 357
+      },
+      {
+        "id": 20,
+        "cost_lamports": 367431010,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 361
+      },
+      {
+        "id": 21,
+        "cost_lamports": 357746515,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 362
+      },
+      {
+        "id": 22,
+        "cost_lamports": 353973824,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 356
+      },
+      {
+        "id": 23,
+        "cost_lamports": 388559727,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 357
+      },
+      {
+        "id": 24,
+        "cost_lamports": 362165802,
+        "deployed_lamports": 0,
+        "claimed": true,
+        "difficulty": 353
+      }
+    ]
+  }
+}

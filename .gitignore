@@ -39,3 +39,8 @@ Thumbs.db
 
 # Ore ShredStream Service (conflicts with bot's direct connection)
 ore_shredstream_service/
+
+# Runtime data
+data/*.json
+*.db
+*.log
