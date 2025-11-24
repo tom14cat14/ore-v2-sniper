@@ -895,7 +895,10 @@ impl OreBoardSniper {
                 total_needed, total_cost, wallet_balance
             ));
         }
-        info!("✅ Balance check passed: {:.6} SOL available", wallet_balance);
+        info!(
+            "✅ Balance check passed: {:.6} SOL available",
+            wallet_balance
+        );
 
         // Get current round ID from Board account (NOT calculated from slot!)
         // CRITICAL FIX: round_id must match the Board account, not be calculated
@@ -916,7 +919,10 @@ impl OreBoardSniper {
             ));
         }
 
-        info!("✅ Board state validated: round_id={}, entropy_var={}", round_id, board.entropy_var);
+        info!(
+            "✅ Board state validated: round_id={}, entropy_var={}",
+            round_id, board.entropy_var
+        );
 
         // Build squares array with ALL selected cells set to true
         let mut squares = [false; 25];
@@ -934,8 +940,8 @@ impl OreBoardSniper {
             authority,
             total_amount, // Total amount for all cells
             round_id,
-            squares,            // Multiple cells set to true
-            board.entropy_var,  // CRITICAL: Use entropy_var from Board account!
+            squares,           // Multiple cells set to true
+            board.entropy_var, // CRITICAL: Use entropy_var from Board account!
         )?;
 
         info!(
@@ -1396,8 +1402,8 @@ async fn fetch_blockhash_from_shredstream() -> Result<solana_sdk::hash::Hash> {
     use solana_client::rpc_client::RpcClient;
     use std::env;
 
-    let rpc_url = env::var("RPC_URL")
-        .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
+    let rpc_url =
+        env::var("RPC_URL").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
 
     let rpc = RpcClient::new(rpc_url);
     rpc.get_latest_blockhash()
