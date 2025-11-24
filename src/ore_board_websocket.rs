@@ -262,8 +262,8 @@ impl BoardWebSocketSubscriber {
 pub fn spawn_board_subscriber(ws_url: String) -> Result<broadcast::Receiver<BoardUpdate>> {
     let subscriber = BoardWebSocketSubscriber::new(ws_url)?;
 
-    // Create broadcast channel (capacity 16 for buffering)
-    let (tx, rx) = broadcast::channel(16);
+    // Create broadcast channel (capacity 256 for handling bursts)
+    let (tx, rx) = broadcast::channel(256);
 
     // Spawn background task
     tokio::spawn(async move {
@@ -454,7 +454,7 @@ pub fn spawn_round_subscriber(
 ) -> Result<broadcast::Receiver<RoundUpdate>> {
     let subscriber = RoundWebSocketSubscriber::new(ws_url, round_id)?;
 
-    let (tx, rx) = broadcast::channel(16);
+    let (tx, rx) = broadcast::channel(256);
 
     tokio::spawn(async move {
         if let Err(e) = subscriber.subscribe(tx).await {
@@ -607,7 +607,7 @@ impl TreasuryWebSocketSubscriber {
 pub fn spawn_treasury_subscriber(ws_url: String) -> Result<broadcast::Receiver<TreasuryUpdate>> {
     let subscriber = TreasuryWebSocketSubscriber::new(ws_url)?;
 
-    let (tx, rx) = broadcast::channel(16);
+    let (tx, rx) = broadcast::channel(256);
 
     tokio::spawn(async move {
         if let Err(e) = subscriber.subscribe(tx).await {

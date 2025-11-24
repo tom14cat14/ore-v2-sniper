@@ -768,77 +768,68 @@ impl OreBoardSniper {
     ///
     /// EV = (Win Prob × My Share) - My Deploy
     fn calculate_ev(&self, board: &OreBoard, cell: &Cell, _time_left: f64) -> f64 {
+        // === Runner 2.1.1 EV Calculation (Verified Correct) ===
+        // Based on: const totalSolOnBlock = W_j + bidAmount;
+        //          const yourShare = bidAmount / totalSolOnBlock;
+        //          const losingSol = 0.9 * (T - W_j);
+        //          const expectedSolReward = losingSol * yourShare * (1/25);
+        //          const adminFee = 0.01 * bidAmount;
+        //          const cost = bidAmount + adminFee;
+        //          const solEvOnly = expectedSolReward - cost;
+
         // === Parameters ===
-        let total_pot = board.pot_lamports as f64 / 1e9; // Total pot (SOL)
-        let cell_deployed = cell.deployed_lamports as f64 / 1e9; // Cell already deployed (SOL)
-        let p_j = self.config.deployment_per_cell_sol; // OUR investment amount (SOL) - NEW!
-        let motherlode = board.motherlode_ore as f64 / 1e11; // Motherlode (ORE) - 11 decimals!
-        let ore_price = board.ore_price_sol; // ORE price (SOL/ORE)
+        let T = board.pot_lamports as f64 / 1e9; // Total pot across all cells (SOL)
+        let W_j = cell.deployed_lamports as f64 / 1e9; // Cell already deployed (SOL)
+        let bid_amount = self.config.deployment_per_cell_sol; // OUR bid (SOL)
+        let M = board.motherlode_ore as f64 / 1e11; // Motherlode (ORE) - 11 decimals!
+        let P = board.ore_price_sol; // ORE price (SOL/ORE)
 
-        // Constants
-        let rake = 0.10; // 10% vaulted
-        let adj = 0.95; // Variance adjustment (conservative)
-        let fees = 0.00005; // Transaction fees (SOL)
-
-        // === Step 1: Calculate my proportional share if this cell wins ===
-        // my_fraction = my_investment / (total_on_cell + my_investment)
-        let cell_total_after = cell_deployed + p_j;
-        let my_fraction = if cell_total_after > 0.0 {
-            p_j / cell_total_after
+        // === Step 1: Your proportional share if this cell wins ===
+        let total_sol_on_block = W_j + bid_amount;
+        let your_share = if total_sol_on_block > 0.0 {
+            bid_amount / total_sol_on_block
         } else {
             0.0
         };
 
-        // === Step 2: Calculate rewards if this cell wins (1/25 probability) ===
-        let win_prob = 1.0 / 25.0;
+        // === Step 2: SOL rewards (from Runner 2.1.1) ===
+        // losingSol = 0.9 * (T - W_j)  ← All OTHER cells' SOL, after 10% rake
+        // expectedSolReward = losingSol * yourShare * (1/25)
+        let losing_sol = 0.9 * (T - W_j); // 90% of pot from losing cells
+        let expected_sol_reward = losing_sol * your_share * (1.0 / 25.0);
 
-        // SOL winnings: CORRECT MECHANICS
-        // 1. ONE cell wins (1/25 chance)
-        // 2. 10% rake taken IMMEDIATELY when bets placed (total_pot already reflects 90%)
-        // 3. ALL winnable pot (90%) goes to that winning cell's bettors
-        // 4. Within winning cell, you get: (your_bet / cell_total) × total_pot
-        // 5. NO additional rake at claim for SOL (rake already taken upfront)
-        //
-        // Example: 100 SOL in bets, 10% rake → 90 SOL winnable pot
-        // Cell 1 wins with 10 SOL total (you bet 1 SOL = 10%)
-        // Your winnings = 10% × 90 SOL = 9 SOL (no additional rake)
-        //
-        // Note: total_pot from board already has rake deducted, so no need to apply here
-        let my_sol_if_win = my_fraction * total_pot; // Your % of pot (rake already taken)
+        // === Step 3: ORE rewards ===
+        // totalOre = P * (1 + M / 625)  ← Regular ORE (1) + amortized motherlode
+        // expectedOreReward = totalOre * yourShare * (1/25) * 0.9
+        let total_ore_value = P * (1.0 + M / 625.0); // Value of (1 ORE + amortized motherlode)
+        let expected_ore_reward = total_ore_value * your_share * (1.0 / 25.0) * 0.9;
 
-        // ORE winnings: Your proportional share of ORE rewards
-        // 1. Regular ORE (1 ORE): Goes to ONE random deployer (uniform lottery, NOT proportional)
-        //    - If cell has N deployers, you have 1/N chance of getting full 1 ORE
-        // 2. Motherlode: your_% × motherlode (when triggered, 1/625 chance)
-        // CRITICAL: 10% rake is applied to ORE when you CLAIM (not upfront like SOL)
-        let n_deployers_after = (cell.difficulty + 1) as f64; // Existing deployers + us
-        let regular_ore_chance = 1.0 / n_deployers_after; // Uniform lottery
-        let regular_ore_before_rake = regular_ore_chance * 1.0 * ore_price; // 1/N chance of 1 ORE
-        let regular_ore_value = regular_ore_before_rake * (1.0 - rake); // 10% rake at claim
+        // === Step 4: Costs ===
+        let admin_fee = 0.01 * bid_amount; // 1% admin fee on deployment
+        let cost = bid_amount + admin_fee;
 
-        let motherlode_trigger_prob = 1.0 / 625.0; // Motherlode trigger chance
-        let my_motherlode_before_rake = my_fraction * motherlode * ore_price; // Your % × motherlode value
-        let motherlode_value = my_motherlode_before_rake * motherlode_trigger_prob * (1.0 - rake); // 10% rake at claim
+        // === Step 5: Calculate EV ===
+        let sol_ev_only = expected_sol_reward - cost;
+        let total_ev_sol = sol_ev_only + expected_ore_reward;
 
-        let ore_value_if_win = regular_ore_value + motherlode_value;
+        // Max possible loss = -cost (you can't lose more than you bet)
+        let max_possible_loss = -cost;
+        let validated_total_ev_sol = total_ev_sol.max(max_possible_loss);
 
-        // === Step 3: Calculate expected value ===
-        // EV = (win_probability × rewards) - cost - fees
-        let expected_return = win_prob * (my_sol_if_win + ore_value_if_win) * adj;
-        let ev_sol = expected_return - p_j - fees;
+        let ev_per_sol = if bid_amount > 0.0 {
+            validated_total_ev_sol / bid_amount
+        } else {
+            0.0
+        };
 
-        // DEBUG: Log ALL cells to see actual EV values (using info! instead of debug! for release builds)
+        // DEBUG: Log ALL cells to see actual EV values
         if cell.id < 25 {
-            info!("🔍 Cell {} EV: pot={:.6}, deployed={:.6}, deployers={}, p_j={:.6}, my_frac={:.2}%, sol_win={:.6}, ore_val={:.6}, exp_ret={:.6}, ev_sol={:.6}, ev%={:.1}%",
-                cell.id, total_pot, cell_deployed, cell.difficulty, p_j, my_fraction * 100.0, my_sol_if_win, ore_value_if_win, expected_return, ev_sol, if p_j > 0.0 { (ev_sol / p_j) * 100.0 } else { 0.0 });
+            info!("🔍 Cell {} EV (Runner2.1.1): T={:.6}, W_j={:.6}, share={:.2}%, losing_sol={:.6}, sol_reward={:.6}, ore_reward={:.6}, cost={:.6}, ev_sol={:.6}, ev%={:.1}%",
+                cell.id, T, W_j, your_share * 100.0, losing_sol, expected_sol_reward, expected_ore_reward, cost, validated_total_ev_sol, ev_per_sol * 100.0);
         }
 
         // Return EV as decimal (0.15 = 15%)
-        if p_j > 0.0 {
-            ev_sol / p_j
-        } else {
-            0.0
-        }
+        ev_per_sol
     }
 
     /// Calculate S_j ranking: measures "drain potential per SOL on cell"
@@ -1003,14 +994,24 @@ impl OreBoardSniper {
         };
 
         info!("⚠️  Skipping preflight simulation (first-time wallet - account will be created)");
+
+        // Measure E2E latency from decision to submission
+        let submit_start = std::time::Instant::now();
         let signature = rpc.send_transaction_with_config(&tx, config)?;
+        let submit_elapsed = submit_start.elapsed();
 
         info!(
-            "✅ Multi-cell transaction submitted: {} | {} cells | Total: {:.6} SOL | Time: {:.1}s",
+            "✅ Multi-cell transaction submitted: {} | {} cells | Total: {:.6} SOL | Snipe time: {:.1}s",
             signature,
             cells.len(),
             total_cost,
             time_left
+        );
+        info!(
+            "⚡ E2E Latency: Total={:.1}ms | Build={:.1}ms | Submit={:.1}ms",
+            start.elapsed().as_secs_f64() * 1000.0,
+            (start.elapsed() - submit_elapsed).as_secs_f64() * 1000.0,
+            submit_elapsed.as_secs_f64() * 1000.0
         );
 
         // Update stats

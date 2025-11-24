@@ -11,7 +11,7 @@ pub struct OreConfig {
 
     // Strategy parameters
     pub min_ev_percentage: f64, // Minimum expected value (default: 0% = any +EV)
-    pub snipe_window_seconds: u64, // Window before reset to snipe (default: 3s)
+    pub snipe_window_seconds: f64, // Window before reset to snipe (supports sub-second precision)
     pub reset_interval_seconds: u64, // Ore grid reset interval (default: 60s)
     pub ore_price_sol: f64,     // Fallback Ore price in SOL
 
@@ -32,6 +32,7 @@ pub struct OreConfig {
     pub min_wallet_balance_sol: f64, // Minimum wallet balance to maintain (default: 0.1 SOL)
 
     // Jito settings
+    pub use_jito: bool,         // Enable JITO bundles (default: false)
     pub jito_endpoint: String,
     pub jito_tip_lamports: u64, // Base tip (default: 50,000 lamports)
 
@@ -78,7 +79,8 @@ impl OreConfig {
                 .parse()?,
             snipe_window_seconds: env::var("SNIPE_WINDOW_SECONDS")
                 .unwrap_or_else(|_| "1".to_string()) // Changed from 2 to 1 to match friend's 1.3s timing
-                .parse()?,
+                .parse()
+                .map_err(|e| anyhow::anyhow!("SNIPE_WINDOW_SECONDS parse error: {}", e))?,
             reset_interval_seconds: env::var("RESET_INTERVAL_SECONDS")
                 .unwrap_or_else(|_| "60".to_string())
                 .parse()?,
@@ -126,6 +128,8 @@ impl OreConfig {
                 .parse()?,
 
             // Jito settings
+            use_jito: env::var("USE_JITO").unwrap_or_else(|_| "false".to_string())
+                == "true",
             jito_endpoint: env::var("JITO_ENDPOINT")
                 .unwrap_or_else(|_| "https://ny.mainnet.block-engine.jito.wtf".to_string()),
             jito_tip_lamports: env::var("JITO_TIP_LAMPORTS")
