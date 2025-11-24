@@ -149,6 +149,16 @@ impl OreRpcClient {
         // Parse total_winnings
         let total_winnings = u64::from_le_bytes(account.data[offset..offset + 8].try_into()?);
 
+        // Log first 5 cells' deployed amounts for debugging
+        info!(
+            "🔍 RPC Cell Data: [{:.6}, {:.6}, {:.6}, {:.6}, {:.6}] SOL",
+            deployed[0] as f64 / 1e9,
+            deployed[1] as f64 / 1e9,
+            deployed[2] as f64 / 1e9,
+            deployed[3] as f64 / 1e9,
+            deployed[4] as f64 / 1e9,
+        );
+
         info!(
             "📊 Round {}: pot={:.6} SOL, deployed cells={}/25",
             id,
@@ -210,10 +220,14 @@ impl OreRpcClient {
         // Fetch round account
         let round_account = self.fetch_round(board_account.round_id).await?;
 
+        // Fetch treasury account (for Motherlode)
+        let treasury_account = self.fetch_treasury().await?;
+
         // Update board with RPC data
         board.round_id = board_account.round_id; // CRITICAL: Sync round_id from RPC
         board.reset_slot = board_account.end_slot;
         board.pot_lamports = round_account.total_deployed; // CRITICAL: Update pot for EV calculations
+        board.motherlode_ore = treasury_account.motherlode; // CRITICAL: Update Motherlode
 
         // Update cell costs from round deployed amounts
         for (i, cell) in board.cells.iter_mut().enumerate() {
@@ -232,9 +246,10 @@ impl OreRpcClient {
         }
 
         info!(
-            "✅ Board updated: round {}, pot={:.6} SOL, {}/25 cells claimed",
+            "✅ Board updated: round {}, pot={:.6} SOL, Motherlode={:.2} ORE, {}/25 cells claimed",
             board_account.round_id,
             round_account.total_deployed as f64 / 1e9,
+            treasury_account.motherlode as f64 / 1e11,
             round_account.deployed.iter().filter(|&&x| x > 0).count()
         );
 

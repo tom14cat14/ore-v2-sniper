@@ -88,7 +88,7 @@ impl OreConfig {
 
             // Multi-cell portfolio strategy
             min_cells_per_round: env::var("MIN_CELLS_PER_ROUND")
-                .unwrap_or_else(|_| "1".to_string())
+                .unwrap_or_else(|_| "0".to_string()) // 0 = only play if there are EV+ opportunities
                 .parse()?,
             max_cells_per_round: env::var("MAX_CELLS_PER_ROUND")
                 .unwrap_or_else(|_| "25".to_string())

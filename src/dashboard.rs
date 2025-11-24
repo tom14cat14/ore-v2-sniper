@@ -32,9 +32,16 @@ pub struct DashboardStatus {
     pub rpc_latency_ms: Option<f64>,
     pub entries_processed: u64,
     pub shredstream_connected: bool,
-    pub total_snipes: u64,
-    pub successful_snipes: u64,
-    pub failed_snipes: u64,
+    // Round-level metrics
+    pub rounds_played: u64,
+    pub rounds_won: u64,
+    pub rounds_lost: u64,
+    pub round_win_rate: f64,
+    // Pick-level metrics (can make multiple picks per round)
+    pub picks_made: u64,
+    pub picks_won: u64,
+    pub pick_win_rate: f64,
+    // Financial metrics
     pub total_spent: f64,
     pub total_earned: f64,
     pub board: BoardStatus,
@@ -131,9 +138,24 @@ impl DashboardWriter {
             rpc_latency_ms,
             entries_processed,
             shredstream_connected,
-            total_snipes: stats.total_snipes,
-            successful_snipes: stats.successful_snipes,
-            failed_snipes: stats.failed_snipes,
+            // Round-level metrics
+            rounds_played: stats.rounds_played,
+            rounds_won: stats.rounds_won,
+            rounds_lost: stats.rounds_lost,
+            round_win_rate: if stats.rounds_played > 0 {
+                (stats.rounds_won as f64 / stats.rounds_played as f64) * 100.0
+            } else {
+                0.0
+            },
+            // Pick-level metrics
+            picks_made: stats.picks_made,
+            picks_won: stats.picks_won,
+            pick_win_rate: if stats.picks_made > 0 {
+                (stats.picks_won as f64 / stats.picks_made as f64) * 100.0
+            } else {
+                0.0
+            },
+            // Financial metrics
             total_spent: stats.total_spent_sol,
             total_earned: stats.total_earned_sol,
             board: BoardStatus {

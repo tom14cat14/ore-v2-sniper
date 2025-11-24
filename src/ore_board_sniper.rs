@@ -86,19 +86,30 @@ pub struct OreBoardSniper {
     board_ws_rx: tokio::sync::broadcast::Receiver<crate::ore_board_websocket::BoardUpdate>,
     round_ws_rx: tokio::sync::broadcast::Receiver<crate::ore_board_websocket::RoundUpdate>,
     treasury_ws_rx: tokio::sync::broadcast::Receiver<crate::ore_board_websocket::TreasuryUpdate>,
+    // Track deployments for win/loss tracking
+    last_round_deployed: Option<u64>,
+    last_round_cells: Vec<u8>,
+    last_round_amount: f64,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct SnipeStats {
-    pub total_snipes: u64,
-    pub successful_snipes: u64,
-    pub failed_snipes: u64,
-    pub total_spent_sol: f64,    // Total SOL spent on bets
-    pub total_earned_sol: f64,   // Total SOL won from claims
-    pub total_tips_paid: f64,    // Total Jito tips paid
-    pub total_claims: u64,       // Number of successful claims
-    pub starting_balance: f64,   // Starting wallet balance
-    pub last_balance_check: f64, // Last known wallet balance
+    // Round-level metrics
+    pub rounds_played: u64,       // Total rounds participated in
+    pub rounds_won: u64,          // Rounds where we won more than we spent
+    pub rounds_lost: u64,         // Rounds where we lost or broke even
+
+    // Pick-level metrics (can make multiple picks per round)
+    pub picks_made: u64,          // Total cells deployed to across all rounds
+    pub picks_won: u64,           // Total cells that were winning cells
+
+    // Financial metrics
+    pub total_spent_sol: f64,     // Total SOL spent on deployments
+    pub total_earned_sol: f64,    // Total SOL won from claims
+    pub total_tips_paid: f64,     // Total Jito tips paid
+    pub total_claims: u64,        // Number of successful claims
+    pub starting_balance: f64,    // Starting wallet balance
+    pub last_balance_check: f64,  // Last known wallet balance
 }
 
 impl OreBoardSniper {
@@ -192,6 +203,9 @@ impl OreBoardSniper {
             board_ws_rx,
             round_ws_rx,
             treasury_ws_rx,
+            last_round_deployed: None,
+            last_round_cells: Vec::new(),
+            last_round_amount: 0.0,
         })
     }
 
@@ -604,6 +618,9 @@ impl OreBoardSniper {
                           old_round_id, new_board.round_id,
                           old_reset_slot, new_board.reset_slot,
                           old_pot as f64 / 1e9, new_board.pot_lamports as f64 / 1e9);
+
+                    // Resolve previous round outcome (win/loss tracking)
+                    self.resolve_previous_round(old_round_id, &new_board);
                 } else {
                     warn!("⚠️  Timeout waiting for new round (30s), continuing anyway (pot: {:.6} SOL)",
                           new_board.pot_lamports as f64 / 1e9);
@@ -866,8 +883,14 @@ impl OreBoardSniper {
                 );
             }
 
-            self.stats.total_snipes += cells.len() as u64;
-            self.stats.successful_snipes += cells.len() as u64;
+            // Track this round for win/loss calculation
+            let board = BOARD.load();
+            self.last_round_deployed = Some(board.round_id);
+            self.last_round_cells = cells.iter().map(|c| c.id).collect();
+            self.last_round_amount = total_cost;
+
+            self.stats.rounds_played += 1;
+            self.stats.picks_made += cells.len() as u64;
             self.stats.total_spent_sol += total_cost;
             return Ok(());
         }
@@ -981,8 +1004,14 @@ impl OreBoardSniper {
         );
 
         // Update stats
-        self.stats.total_snipes += cells.len() as u64;
-        self.stats.successful_snipes += cells.len() as u64;
+        // Track this round for win/loss calculation
+        let board = BOARD.load();
+        self.last_round_deployed = Some(board.round_id);
+        self.last_round_cells = cells.iter().map(|c| c.id).collect();
+        self.last_round_amount = total_cost;
+
+        self.stats.rounds_played += 1;
+        self.stats.picks_made += cells.len() as u64;
         self.stats.total_spent_sol += total_cost;
 
         Ok(())
@@ -1020,8 +1049,8 @@ impl OreBoardSniper {
     fn log_pnl_summary(&self) {
         let net_pnl =
             self.stats.total_earned_sol - (self.stats.total_spent_sol + self.stats.total_tips_paid);
-        let win_rate = if self.stats.total_snipes > 0 {
-            (self.stats.successful_snipes as f64 / self.stats.total_snipes as f64) * 100.0
+        let win_rate = if self.stats.rounds_played > 0 {
+            (self.stats.rounds_won as f64 / self.stats.rounds_played as f64) * 100.0
         } else {
             0.0
         };
@@ -1040,7 +1069,7 @@ impl OreBoardSniper {
         info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         info!(
             "📤 Total Bets Placed: {} (Win Rate: {:.1}%)",
-            self.stats.total_snipes, win_rate
+            self.stats.rounds_played, win_rate
         );
         info!("📥 Total Claims Won:  {}", self.stats.total_claims);
         info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -1188,6 +1217,9 @@ impl OreBoardSniper {
             board_ws_rx: self.board_ws_rx.resubscribe(), // New receiver from same broadcast channel
             round_ws_rx: self.round_ws_rx.resubscribe(), // New receiver from same broadcast channel
             treasury_ws_rx: self.treasury_ws_rx.resubscribe(), // New receiver from same broadcast channel
+            last_round_deployed: self.last_round_deployed,
+            last_round_cells: self.last_round_cells.clone(),
+            last_round_amount: self.last_round_amount,
         }
     }
 
@@ -1386,6 +1418,88 @@ pub fn mark_mempool_deploy(cell_id: u8) {
         debug!("⚠️  Cell {} claimed in mempool", cell_id);
     }
     BOARD.store(Arc::new(board));
+}
+
+impl OreBoardSniper {
+    /// Check and resolve previous round outcome (win/loss tracking)
+    /// Called when a new round starts to determine if previous round was profitable
+    fn resolve_previous_round(&mut self, old_round_id: u64, board: &OreBoard) {
+        // Only process if we deployed to the previous round
+        if let Some(deployed_round) = self.last_round_deployed {
+            if deployed_round != old_round_id {
+                return; // Not the round we deployed to
+            }
+
+            // Check if any of our deployed cells are now claimed (indicating they won)
+            let mut winning_picks = 0;
+            let mut total_payout = 0.0;
+
+            for &cell_id in &self.last_round_cells {
+                if let Some(cell) = board.cells.get(cell_id as usize) {
+                    if cell.claimed {
+                        winning_picks += 1;
+
+                        // Calculate our share of this cell's payout
+                        // Our share = (our deployment / total deployed on cell) * (pot / num_winning_cells)
+                        // Note: In ORE V2, typically only ONE cell wins, but we account for edge cases
+                        if cell.deployed_lamports > 0 {
+                            let our_deployment_lamports = (self.config.deployment_per_cell_sol * 1e9) as u64;
+                            let our_share = our_deployment_lamports as f64 / cell.deployed_lamports as f64;
+
+                            // Estimate payout (pot split among winning cell deployers)
+                            // This is simplified - actual payout depends on ORE protocol specifics
+                            let cell_payout = board.pot_lamports as f64 / 1e9;
+                            total_payout += cell_payout * our_share;
+                        }
+                    }
+                }
+            }
+
+            // Update pick-level stats
+            self.stats.picks_won += winning_picks;
+
+            // Determine if round was profitable
+            if total_payout > self.last_round_amount {
+                self.stats.rounds_won += 1;
+                info!(
+                    "✅ Round {} WON! Picks won: {}/{}, Spent: {:.6} SOL, Won: {:.6} SOL, Profit: {:.6} SOL",
+                    old_round_id,
+                    winning_picks,
+                    self.last_round_cells.len(),
+                    self.last_round_amount,
+                    total_payout,
+                    total_payout - self.last_round_amount
+                );
+                self.stats.total_earned_sol += total_payout;
+            } else {
+                self.stats.rounds_lost += 1;
+                if winning_picks > 0 {
+                    info!(
+                        "⚠️  Round {} LOSS (partial win): Picks won: {}/{}, Spent: {:.6} SOL, Won: {:.6} SOL, Loss: {:.6} SOL",
+                        old_round_id,
+                        winning_picks,
+                        self.last_round_cells.len(),
+                        self.last_round_amount,
+                        total_payout,
+                        self.last_round_amount - total_payout
+                    );
+                    self.stats.total_earned_sol += total_payout;
+                } else {
+                    info!(
+                        "❌ Round {} LOSS: Picks won: 0/{}, Spent: {:.6} SOL",
+                        old_round_id,
+                        self.last_round_cells.len(),
+                        self.last_round_amount
+                    );
+                }
+            }
+
+            // Clear tracking for next round
+            self.last_round_deployed = None;
+            self.last_round_cells.clear();
+            self.last_round_amount = 0.0;
+        }
+    }
 }
 
 // === HELPER FUNCTIONS ===

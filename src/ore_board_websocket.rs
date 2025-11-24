@@ -115,7 +115,7 @@ impl BoardWebSocketSubscriber {
 
         // Subscribe to Board PDA account changes (with confirmed commitment)
         let config = RpcAccountInfoConfig {
-            encoding: None, // Use default binary encoding
+            encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
             commitment: Some(CommitmentConfig::confirmed()),
             data_slice: None,
             min_context_slot: None,
@@ -137,11 +137,25 @@ impl BoardWebSocketSubscriber {
             let bytes: Vec<u8> = match &response.value.data {
                 UiAccountData::Binary(encoded_data, _)
                 | UiAccountData::LegacyBinary(encoded_data) => {
+                    debug!(
+                        "📦 Board data: len={}, preview={}",
+                        encoded_data.len(),
+                        &encoded_data[..encoded_data.len().min(100)]
+                    );
+
                     // Decode base64 string to bytes
                     match general_purpose::STANDARD.decode(encoded_data) {
-                        Ok(data) => data,
+                        Ok(data) => {
+                            debug!("✅ Board data decoded: {} bytes", data.len());
+                            data
+                        }
                         Err(e) => {
-                            warn!("⚠️  Failed to decode base64 data: {}", e);
+                            warn!(
+                                "⚠️  Board WS: base64 decode FAILED: {} (len={}, preview={})",
+                                e,
+                                encoded_data.len(),
+                                &encoded_data[..encoded_data.len().min(50)]
+                            );
                             continue;
                         }
                     }
@@ -184,28 +198,43 @@ impl BoardWebSocketSubscriber {
         // - 8 bytes: discriminator + 1 byte round_id OR
         // - Different structure entirely
 
-        // Try 33-byte format: 1 byte discriminator + 32 bytes Pubkey (current round PDA?)
+        // Try 32-byte format: Just a Pubkey (no discriminator)
+        if data.len() == 32 {
+            let current_round_pda = Pubkey::try_from(data)?;
+            debug!(
+                "📊 Board (32-byte format): current_round_pda = {}",
+                current_round_pda
+            );
+
+            // Return dummy values - Round account will provide actual data
+            return Ok(BoardUpdate {
+                round_id: 0,
+                start_slot: 0,
+                end_slot: 0,
+                entropy_var: current_round_pda,
+            });
+        }
+
+        // Try 33-byte format: 1 byte discriminator + 32 bytes Pubkey
         if data.len() == 33 {
-            // Skip 1-byte discriminator, parse 32-byte Pubkey
             let current_round_pda = Pubkey::try_from(&data[1..33])?;
-            info!(
+            debug!(
                 "📊 Board (33-byte format): current_round_pda = {}",
                 current_round_pda
             );
 
-            // For now, return dummy values - we'll need to query Round account separately
             return Ok(BoardUpdate {
-                round_id: 0, // Unknown - need to fetch from Round account
+                round_id: 0,
                 start_slot: 0,
                 end_slot: 0,
-                entropy_var: current_round_pda, // Store round PDA temporarily
+                entropy_var: current_round_pda,
             });
         }
 
         // Try original 64-byte format
         if data.len() < 64 {
             return Err(anyhow!(
-                "Board account data unexpected size: {} bytes (expected 33 or 64+)",
+                "Board account data unexpected size: {} bytes (expected 32, 33, or 64+)",
                 data.len()
             ));
         }
@@ -293,7 +322,7 @@ impl RoundWebSocketSubscriber {
         info!("✅ Round WebSocket connected");
 
         let config = RpcAccountInfoConfig {
-            encoding: None,
+            encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
             commitment: Some(CommitmentConfig::confirmed()),
             data_slice: None,
             min_context_slot: None,
@@ -313,16 +342,30 @@ impl RoundWebSocketSubscriber {
             let bytes: Vec<u8> = match &response.value.data {
                 UiAccountData::Binary(encoded_data, _)
                 | UiAccountData::LegacyBinary(encoded_data) => {
+                    debug!(
+                        "📦 Round data: len={}, preview={}",
+                        encoded_data.len(),
+                        &encoded_data[..encoded_data.len().min(100)]
+                    );
+
                     match general_purpose::STANDARD.decode(encoded_data) {
-                        Ok(data) => data,
+                        Ok(data) => {
+                            debug!("✅ Round data decoded: {} bytes", data.len());
+                            data
+                        }
                         Err(e) => {
-                            warn!("⚠️  Failed to decode base64 data: {}", e);
+                            warn!(
+                                "⚠️  Round WS: base64 decode FAILED: {} (len={}, preview={})",
+                                e,
+                                encoded_data.len(),
+                                &encoded_data[..encoded_data.len().min(50)]
+                            );
                             continue;
                         }
                     }
                 }
                 UiAccountData::Json(_) => {
-                    warn!("⚠️  Received JSON account data, expected binary");
+                    warn!("⚠️  Round WS: Received JSON, expected binary");
                     continue;
                 }
             };
@@ -470,7 +513,7 @@ impl TreasuryWebSocketSubscriber {
         info!("✅ Treasury WebSocket connected");
 
         let config = RpcAccountInfoConfig {
-            encoding: None,
+            encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
             commitment: Some(CommitmentConfig::confirmed()),
             data_slice: None,
             min_context_slot: None,
@@ -490,16 +533,30 @@ impl TreasuryWebSocketSubscriber {
             let bytes: Vec<u8> = match &response.value.data {
                 UiAccountData::Binary(encoded_data, _)
                 | UiAccountData::LegacyBinary(encoded_data) => {
+                    debug!(
+                        "📦 Treasury data: len={}, preview={}",
+                        encoded_data.len(),
+                        &encoded_data[..encoded_data.len().min(100)]
+                    );
+
                     match general_purpose::STANDARD.decode(encoded_data) {
-                        Ok(data) => data,
+                        Ok(data) => {
+                            debug!("✅ Treasury data decoded: {} bytes", data.len());
+                            data
+                        }
                         Err(e) => {
-                            warn!("⚠️  Failed to decode base64 data: {}", e);
+                            warn!(
+                                "⚠️  Treasury WS: base64 decode FAILED: {} (len={}, preview={})",
+                                e,
+                                encoded_data.len(),
+                                &encoded_data[..encoded_data.len().min(50)]
+                            );
                             continue;
                         }
                     }
                 }
                 UiAccountData::Json(_) => {
-                    warn!("⚠️  Received JSON account data, expected binary");
+                    warn!("⚠️  Treasury WS: Received JSON, expected binary");
                     continue;
                 }
             };
