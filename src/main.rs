@@ -1,7 +1,6 @@
 use anyhow::Result;
 use ore_sniper::{OreBoardSniper, OreConfig};
 use tracing::{error, info};
-use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -75,19 +74,32 @@ async fn main() -> Result<()> {
             info!("     Rounds played: {}", stats.rounds_played);
             info!("     Rounds won: {}", stats.rounds_won);
             info!("     Rounds lost: {}", stats.rounds_lost);
-            info!("     Round win rate: {:.1}%", if stats.rounds_played > 0 {
-                (stats.rounds_won as f64 / stats.rounds_played as f64) * 100.0
-            } else { 0.0 });
+            info!(
+                "     Round win rate: {:.1}%",
+                if stats.rounds_played > 0 {
+                    (stats.rounds_won as f64 / stats.rounds_played as f64) * 100.0
+                } else {
+                    0.0
+                }
+            );
             info!("   Pick-level:");
             info!("     Picks made: {}", stats.picks_made);
             info!("     Picks won: {}", stats.picks_won);
-            info!("     Pick win rate: {:.1}%", if stats.picks_made > 0 {
-                (stats.picks_won as f64 / stats.picks_made as f64) * 100.0
-            } else { 0.0 });
+            info!(
+                "     Pick win rate: {:.1}%",
+                if stats.picks_made > 0 {
+                    (stats.picks_won as f64 / stats.picks_made as f64) * 100.0
+                } else {
+                    0.0
+                }
+            );
             info!("   Financial:");
             info!("     Total spent: {:.6} SOL", stats.total_spent_sol);
             info!("     Total earned: {:.6} SOL", stats.total_earned_sol);
-            info!("     Net profit: {:.6} SOL", stats.total_earned_sol - stats.total_spent_sol);
+            info!(
+                "     Net profit: {:.6} SOL",
+                stats.total_earned_sol - stats.total_spent_sol
+            );
 
             Err(e)
         }
@@ -107,9 +119,18 @@ fn print_config_summary(config: &OreConfig) {
         }
     );
     info!("   Min EV: {:.1}%", config.min_ev_percentage);
-    info!("   Snipe window: {}s before reset", config.snipe_window_seconds);
-    info!("   Deployment per cell: {:.4} SOL", config.deployment_per_cell_sol);
-    info!("   Max cost per round: {:.4} SOL", config.max_cost_per_round_sol);
+    info!(
+        "   Snipe window: {}s before reset",
+        config.snipe_window_seconds
+    );
+    info!(
+        "   Deployment per cell: {:.4} SOL",
+        config.deployment_per_cell_sol
+    );
+    info!(
+        "   Max cost per round: {:.4} SOL",
+        config.max_cost_per_round_sol
+    );
     info!(
         "   Daily limits: {} claims, {:.2} SOL max loss",
         config.max_daily_claims, config.max_daily_loss_sol
@@ -151,7 +172,8 @@ async fn perform_health_checks(config: &OreConfig) -> Result<()> {
     if config.enable_real_trading {
         info!("   Checking wallet configuration...");
         if config.wallet_private_key == "REPLACE_WITH_YOUR_BASE58_PRIVATE_KEY"
-            || config.wallet_private_key.len() < 32 {
+            || config.wallet_private_key.len() < 32
+        {
             return Err(anyhow::anyhow!(
                 "Invalid WALLET_PRIVATE_KEY - please set your actual wallet key in .env"
             ));
