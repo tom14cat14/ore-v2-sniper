@@ -332,7 +332,7 @@ impl OreShredStreamProcessor {
                                 events.push(OreEvent::CellDeployed {
                                     cell_id: cell_id as u8,
                                     authority: authority.clone(),
-                                    amount_lamports: amount_per_cell,  // Per-cell amount, not total!
+                                    amount_lamports: amount_per_cell, // Per-cell amount, not total!
                                 });
                             }
                         }
