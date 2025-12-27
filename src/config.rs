@@ -32,7 +32,7 @@ pub struct OreConfig {
     pub min_wallet_balance_sol: f64, // Minimum wallet balance to maintain (default: 0.1 SOL)
 
     // Jito settings
-    pub use_jito: bool,         // Enable JITO bundles (default: false)
+    pub use_jito: bool, // Enable JITO bundles (default: false)
     pub jito_endpoint: String,
     pub jito_tip_lamports: u64, // Base tip (default: 50,000 lamports)
 
@@ -128,8 +128,7 @@ impl OreConfig {
                 .parse()?,
 
             // Jito settings
-            use_jito: env::var("USE_JITO").unwrap_or_else(|_| "false".to_string())
-                == "true",
+            use_jito: env::var("USE_JITO").unwrap_or_else(|_| "false".to_string()) == "true",
             jito_endpoint: env::var("JITO_ENDPOINT")
                 .unwrap_or_else(|_| "https://ny.mainnet.block-engine.jito.wtf".to_string()),
             jito_tip_lamports: env::var("JITO_TIP_LAMPORTS")
