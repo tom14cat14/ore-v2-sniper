@@ -175,6 +175,86 @@ impl OreRpcClient {
         })
     }
 
+    /// Fetch round with winning cell calculation
+    /// Returns (RoundAccount, winning_cell_index)
+    pub async fn fetch_round_with_winner(&self, round_id: u64) -> Result<(RoundAccount, u8)> {
+        // Get Round PDA
+        let ore_program = ORE_PROGRAM_ID.parse::<Pubkey>()?;
+        let round_id_bytes = round_id.to_le_bytes();
+        let (round_pda, _bump) =
+            Pubkey::find_program_address(&[ROUND, &round_id_bytes], &ore_program);
+
+        // Get account data
+        let account = self
+            .rpc
+            .get_account(&round_pda)
+            .map_err(|e| anyhow!("Failed to fetch Round account: {}", e))?;
+
+        // Parse Round account structure:
+        // 8 bytes: discriminator
+        // 8 bytes: id
+        // 200 bytes: deployed[25] (25 * 8)
+        // 32 bytes: slot_hash <-- This determines the winning cell!
+        // ...
+
+        if account.data.len() < 8 + 8 + 200 + 32 {
+            return Err(anyhow!(
+                "Round account data too small: {} bytes",
+                account.data.len()
+            ));
+        }
+
+        let mut offset = 8; // Skip discriminator
+
+        // Parse id
+        let id = u64::from_le_bytes(account.data[offset..offset + 8].try_into()?);
+        offset += 8;
+
+        // Parse deployed array (25 u64s)
+        let mut deployed = [0u64; 25];
+        for i in 0..25 {
+            deployed[i] = u64::from_le_bytes(account.data[offset..offset + 8].try_into()?);
+            offset += 8;
+        }
+
+        // Parse slot_hash (32 bytes) - this determines winning cell
+        let slot_hash: [u8; 32] = account.data[offset..offset + 32].try_into()?;
+        offset += 32;
+
+        // Winning cell = first byte of slot_hash % 25
+        // This is how ORE V2 determines the winner
+        let winning_cell = slot_hash[0] % 25;
+
+        // Parse count array (25 u64s)
+        let mut count = [0u64; 25];
+        for i in 0..25 {
+            count[i] = u64::from_le_bytes(account.data[offset..offset + 8].try_into()?);
+            offset += 8;
+        }
+
+        // Skip to total_deployed
+        offset += 8 + 8 + 32 + 32 + 8; // expires_at, motherlode, rent_payer, top_miner, top_miner_reward
+
+        let total_deployed = u64::from_le_bytes(account.data[offset..offset + 8].try_into()?);
+        offset += 8;
+        offset += 8; // Skip total_vaulted
+
+        let total_winnings = u64::from_le_bytes(account.data[offset..offset + 8].try_into()?);
+
+        info!(
+            "📊 Round {} winner: cell {} (slot_hash[0]={} % 25 = {})",
+            id, winning_cell, slot_hash[0], winning_cell
+        );
+
+        Ok((RoundAccount {
+            id,
+            deployed,
+            count,
+            total_deployed,
+            total_winnings,
+        }, winning_cell))
+    }
+
     /// Fetch current treasury state from RPC
     pub async fn fetch_treasury(&self) -> Result<TreasuryAccount> {
         // Get Treasury PDA

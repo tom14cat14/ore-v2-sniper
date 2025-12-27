@@ -21,6 +21,7 @@ use crate::config::OreConfig;
 use crate::dashboard::{get_timestamp, DashboardEvent, DashboardWriter};
 use crate::ore_instructions::build_deploy_instruction;
 use crate::ore_shredstream::{OreEvent, OreShredStreamProcessor};
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::signature::{Keypair, Signer};
 
 // Ore V2 constants
@@ -90,6 +91,10 @@ pub struct OreBoardSniper {
     last_round_deployed: Option<u64>,
     last_round_cells: Vec<u8>,
     last_round_amount: f64,
+    // Pending rounds to checkpoint (batched to save on fees)
+    pending_checkpoint_rounds: Vec<u64>,
+    // Estimated pending rewards (only checkpoint when >= 0.5 SOL)
+    pending_rewards_sol: f64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -206,6 +211,8 @@ impl OreBoardSniper {
             last_round_deployed: None,
             last_round_cells: Vec::new(),
             last_round_amount: 0.0,
+            pending_checkpoint_rounds: Vec::new(),
+            pending_rewards_sol: 0.0,
         })
     }
 
@@ -245,6 +252,33 @@ impl OreBoardSniper {
                 Err(e) => {
                     warn!("⚠️  Failed to fetch initial Treasury state: {}", e);
                 }
+            }
+        }
+
+        // Fetch initial ORE price (once at startup)
+        match self.price_fetcher.get_price().await {
+            Ok(price_sol) => {
+                let mut board = BOARD.load().as_ref().clone();
+                board.ore_price_sol = price_sol;
+                BOARD.store(Arc::new(board));
+                info!("💰 Initial ORE price: {:.8} SOL", price_sol);
+            }
+            Err(e) => {
+                warn!("⚠️  Failed to fetch initial ORE price: {}", e);
+                // Will retry on first round start
+            }
+        }
+
+        // Derive and set entropy_var PDA (fixed address, never changes)
+        match crate::ore_instructions::get_entropy_var_address() {
+            Ok(entropy_var) => {
+                let mut board = BOARD.load().as_ref().clone();
+                board.entropy_var = entropy_var;
+                BOARD.store(Arc::new(board));
+                info!("🎲 Entropy VAR derived: {}", entropy_var);
+            }
+            Err(e) => {
+                warn!("⚠️  Failed to derive entropy_var: {} - deploys will fail!", e);
             }
         }
 
@@ -307,6 +341,12 @@ impl OreBoardSniper {
                     if board_update.round_id != old_round_id && board_update.round_id > 0 {
                         info!("🔄 ROUND CHANGE DETECTED! {} → {}, re-subscribing to Round WebSocket (reset_slot: {})",
                               old_round_id, board_update.round_id, board_update.end_slot);
+
+                        // Checkpoint previous round if we deployed to it
+                        // This claims any rewards we won
+                        if old_round_id > 0 {
+                            self.check_and_checkpoint_previous_rounds(board_update.round_id).await;
+                        }
 
                         // Spawn new Round subscriber for new round
                         match crate::ore_board_websocket::spawn_round_subscriber(
@@ -503,6 +543,9 @@ impl OreBoardSniper {
             }
 
             // === MULTI-CELL PORTFOLIO STRATEGY ===
+            // Reload board after RPC refresh to get fresh data
+            let board = BOARD.load();
+
             // Get wallet balance
             let wallet_balance = match self.check_wallet_balance().await {
                 Ok(balance) => balance,
@@ -595,19 +638,29 @@ impl OreBoardSniper {
                       old_round_id, old_reset_slot, old_pot as f64 / 1e9);
 
                 // Wait for reset_slot to change (indicating new round started)
+                // CRITICAL: Must actively poll RPC since WebSocket updates aren't processed in this loop
                 let mut attempts = 0;
-                while BOARD.load().reset_slot == old_reset_slot && attempts < 300 {
-                    // Max 30 seconds
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                while BOARD.load().reset_slot == old_reset_slot && attempts < 60 {
+                    // Max 30 seconds (60 attempts * 500ms)
+                    tokio::time::sleep(Duration::from_millis(500)).await;
                     attempts += 1;
 
-                    // Log progress every 5 seconds (50 attempts)
-                    if attempts % 50 == 0 {
-                        let current_pot = BOARD.load().pot_lamports;
+                    // Poll RPC every iteration to detect new round
+                    if let Some(ref rpc) = self.rpc_client {
+                        let mut board = BOARD.load().as_ref().clone();
+                        if let Ok(()) = rpc.update_board_state(&mut board).await {
+                            BOARD.store(Arc::new(board));
+                        }
+                    }
+
+                    // Log progress every 5 seconds (10 attempts)
+                    if attempts % 10 == 0 {
+                        let current_board = BOARD.load();
                         info!(
-                            "   ⏳ Still waiting... {}s elapsed (pot now: {:.6} SOL)",
-                            attempts / 10,
-                            current_pot as f64 / 1e9
+                            "   ⏳ Still waiting... {}s elapsed (reset_slot: {}, pot: {:.6} SOL)",
+                            attempts / 2,
+                            current_board.reset_slot,
+                            current_board.pot_lamports as f64 / 1e9
                         );
                     }
                 }
@@ -619,8 +672,22 @@ impl OreBoardSniper {
                           old_reset_slot, new_board.reset_slot,
                           old_pot as f64 / 1e9, new_board.pot_lamports as f64 / 1e9);
 
+                    // Fetch fresh ORE price for this round (only once per round!)
+                    match self.price_fetcher.get_price().await {
+                        Ok(price_sol) => {
+                            let mut board = new_board.as_ref().clone();
+                            board.ore_price_sol = price_sol;
+                            BOARD.store(Arc::new(board));
+                            info!("💰 ORE price updated for new round: {:.8} SOL", price_sol);
+                        }
+                        Err(e) => {
+                            warn!("⚠️  Failed to fetch ORE price for new round, using cached: {}", e);
+                            // Keep existing price in board
+                        }
+                    }
+
                     // Resolve previous round outcome (win/loss tracking)
-                    self.resolve_previous_round(old_round_id, &new_board);
+                    self.resolve_previous_round(old_round_id, &BOARD.load());
                 } else {
                     warn!("⚠️  Timeout waiting for new round (30s), continuing anyway (pot: {:.6} SOL)",
                           new_board.pot_lamports as f64 / 1e9);
@@ -953,13 +1020,13 @@ impl OreBoardSniper {
         }
 
         // Build Deploy instruction for multiple cells
+        // Deploy requires exactly 7 accounts - no entropy_var needed!
         let deploy_ix = build_deploy_instruction(
             authority,
             authority,
             total_amount, // Total amount for all cells
             round_id,
-            squares,            // Multiple cells set to true
-            board.entropy_var,  // CRITICAL: Use entropy_var from Board account!
+            squares,      // Multiple cells set to true
         )?;
 
         info!(
@@ -977,23 +1044,61 @@ impl OreBoardSniper {
         // Get recent blockhash
         let blockhash = rpc.get_latest_blockhash()?;
 
-        // Build transaction
+        // Add priority fee for 75% landing rate
+        // 50,000 micro-lamports is typically "High" priority (75th percentile)
+        let compute_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
+        let compute_price_ix = ComputeBudgetInstruction::set_compute_unit_price(50_000); // 50k micro-lamports for 75% landing
+        info!("💰 Priority fee: 50,000 micro-lamports/CU (75th percentile target)");
+
+        // Build transaction with priority fee instructions
         let tx = Transaction::new_signed_with_payer(
-            &[deploy_ix],
+            &[compute_limit_ix, compute_price_ix, deploy_ix],
             Some(&authority),
             &[wallet],
             blockhash,
         );
 
-        // Submit transaction - SKIP SIMULATION for first-time wallet
-        // The miner account doesn't exist yet, so simulation fails
-        // But the Deploy instruction creates it on-chain
+        // === TRANSACTION SIMULATION ===
+        // Simulate transaction before sending to catch errors early
+        // This adds ~100-200ms latency but prevents failed transactions
+        info!("🔬 Simulating transaction before submission...");
+        let sim_start = std::time::Instant::now();
+
+        match rpc.simulate_transaction(&tx) {
+            Ok(sim_result) => {
+                if let Some(err) = sim_result.value.err {
+                    // Simulation failed - check if it's a "miner account doesn't exist" error
+                    let err_str = format!("{:?}", err);
+                    if err_str.contains("AccountNotFound") || err_str.contains("custom program error: 0x") {
+                        // This is expected for first-time deploys - miner account will be created
+                        info!("⚠️  Simulation failed (expected for first deploy): {:?}", err);
+                        info!("   Proceeding anyway - account will be created on-chain");
+                    } else {
+                        // Unexpected error - skip this round but don't crash
+                        warn!("⚠️  Transaction simulation failed: {:?}. Skipping this round.", err);
+                        return Ok(()); // Continue to next round instead of crashing
+                    }
+                } else {
+                    info!("✅ Simulation passed in {:?}", sim_start.elapsed());
+                    if let Some(logs) = sim_result.value.logs {
+                        for log in logs.iter().take(5) {
+                            debug!("   Log: {}", log);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                // RPC error during simulation - proceed with caution
+                warn!("⚠️  Simulation RPC error: {}. Proceeding with transaction...", e);
+            }
+        }
+
+        // === SUBMIT TRANSACTION ===
+        // Now submit the transaction (with preflight enabled for extra safety)
         let config = RpcSendTransactionConfig {
-            skip_preflight: true, // Skip simulation - account will be created on-chain
+            skip_preflight: false, // Enable preflight check
             ..Default::default()
         };
-
-        info!("⚠️  Skipping preflight simulation (first-time wallet - account will be created)");
 
         // Measure E2E latency from decision to submission
         let submit_start = std::time::Instant::now();
@@ -1138,9 +1243,12 @@ impl OreBoardSniper {
         // Get Motherlode amount (in ORE)
         let motherlode_ore = board.motherlode_ore as f64 / 1e11; // ORE has 11 decimals!
 
-        // Get live ORE prices (SOL and USD)
-        let ore_price_sol = self.price_fetcher.get_price().await.unwrap_or(0.0);
-        let ore_price_usd = self.price_fetcher.get_price_usd().await.unwrap_or(0.0);
+        // Use cached ORE price from board (updated once per round, not per dashboard update)
+        let ore_price_sol = board.ore_price_sol;
+
+        // Calculate USD price from SOL price (SOL ~$240 as rough estimate)
+        // Note: If exact USD needed, fetch SOL/USD once per round too
+        let ore_price_usd = ore_price_sol * 240.0; // Rough estimate
 
         self.dashboard.write_status(
             &board,
@@ -1231,6 +1339,8 @@ impl OreBoardSniper {
             last_round_deployed: self.last_round_deployed,
             last_round_cells: self.last_round_cells.clone(),
             last_round_amount: self.last_round_amount,
+            pending_checkpoint_rounds: self.pending_checkpoint_rounds.clone(),
+            pending_rewards_sol: self.pending_rewards_sol,
         }
     }
 
@@ -1309,8 +1419,10 @@ impl OreBoardSniper {
                                 cell.deployers.push(authority.clone());
                                 cell.claimed = true;
 
-                                // PROPORTIONAL OWNERSHIP: Track total deployed to this cell
-                                cell.deployed_lamports += amount_lamports;
+                                // NOTE: Don't track deployed_lamports from ShredStream - Round WebSocket
+                                // is authoritative and sets the correct total. ShredStream += was causing
+                                // accumulation bugs where cells showed 10 SOL when pot was only 12 SOL total.
+                                // cell.deployed_lamports += amount_lamports;  // DISABLED - use Round WS data
 
                                 // Set our fixed investment amount (from config, convert SOL to lamports)
                                 if cell.cost_lamports == 0 {
@@ -1319,13 +1431,13 @@ impl OreBoardSniper {
                                 }
 
                                 // Track difficulty (number of deployers for pot splitting)
+                                // NOTE: deployers count from ShredStream may drift from Round WS count
                                 cell.difficulty = cell.deployers.len() as u64;
 
-                                info!(
-                                    "   → Cell {} totals: deployed={:.6} SOL, deployers={}",
-                                    cell_id,
-                                    cell.deployed_lamports as f64 / 1e9,
-                                    cell.difficulty
+                                // Log the deploy event (deployed_lamports comes from Round WS, not ShredStream)
+                                debug!(
+                                    "   → Cell {} ShredStream event (Round WS has authoritative totals)",
+                                    cell_id
                                 );
                             }
                             BOARD.store(Arc::new(board));
@@ -1509,6 +1621,159 @@ impl OreBoardSniper {
             self.last_round_deployed = None;
             self.last_round_cells.clear();
             self.last_round_amount = 0.0;
+        }
+    }
+
+    /// Execute checkpoint to claim rewards for a round we participated in
+    /// Should be called after round ends to collect any winnings
+    pub async fn execute_checkpoint(&self, round_id: u64) -> Result<()> {
+        let wallet = self.wallet.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("No wallet loaded - cannot execute checkpoint")
+        })?;
+
+        let authority = wallet.pubkey();
+
+        // Get PDAs
+        let board_address = crate::ore_instructions::get_board_address()?;
+        let miner_address = crate::ore_instructions::get_miner_address(authority)?;
+
+        info!("🎫 Executing checkpoint for round {} to claim rewards", round_id);
+
+        // Build checkpoint instruction
+        let checkpoint_ix = crate::ore_instructions::build_checkpoint_instruction(
+            authority,
+            board_address,
+            miner_address,
+            round_id,
+        )?;
+
+        // Build and send transaction via RPC
+        use solana_client::rpc_client::RpcClient;
+        use solana_client::rpc_config::RpcSendTransactionConfig;
+        use solana_sdk::transaction::Transaction;
+
+        let rpc = RpcClient::new(self.config.rpc_url.clone());
+        let blockhash = rpc.get_latest_blockhash()?;
+
+        let tx = Transaction::new_signed_with_payer(
+            &[checkpoint_ix],
+            Some(&authority),
+            &[wallet],
+            blockhash,
+        );
+
+        // Send with skip_preflight for speed
+        let config = RpcSendTransactionConfig {
+            skip_preflight: false, // Simulate first to catch errors
+            ..Default::default()
+        };
+
+        match rpc.send_transaction_with_config(&tx, config) {
+            Ok(signature) => {
+                info!("✅ Checkpoint submitted: {} for round {}", signature, round_id);
+                Ok(())
+            }
+            Err(e) => {
+                // Check if error is "already checkpointed" which is fine
+                let err_str = e.to_string();
+                if err_str.contains("already") || err_str.contains("Checkpoint") {
+                    info!("ℹ️  Round {} already checkpointed (by us or someone else)", round_id);
+                    Ok(())
+                } else {
+                    warn!("⚠️  Checkpoint failed for round {}: {}", round_id, e);
+                    Err(anyhow::anyhow!("Checkpoint failed: {}", e))
+                }
+            }
+        }
+    }
+
+    /// Check if we won the previous round and track rewards
+    /// Only checkpoints when pending rewards >= 0.5 SOL (to let funds build up)
+    pub async fn check_and_checkpoint_previous_rounds(&mut self, current_round_id: u64) {
+        // If we deployed to a previous round, check if we won
+        if let Some(deployed_round) = self.last_round_deployed {
+            if deployed_round < current_round_id {
+                // Check if we won by querying the round result
+                let won = self.check_if_won_round(deployed_round).await;
+
+                if won {
+                    // Estimate our reward (pot * our_share)
+                    // For now estimate based on typical pot and our share
+                    let board = BOARD.load();
+                    let pot_sol = board.pot_lamports as f64 / 1e9;
+                    let our_deployment = self.config.deployment_per_cell_sol;
+
+                    // Estimate our share of winning cell
+                    // Typical cell has ~0.5 SOL deployed, we add our_deployment
+                    let avg_cell_deployed = pot_sol / 25.0;
+                    let our_share = our_deployment / (avg_cell_deployed + our_deployment);
+                    let estimated_reward = pot_sol * 0.9 * our_share; // 90% of pot, our share
+
+                    self.pending_rewards_sol += estimated_reward;
+                    self.pending_checkpoint_rounds.push(deployed_round);
+
+                    info!("🎉 WON Round {}! Estimated reward: {:.4} SOL | Total pending: {:.4} SOL",
+                          deployed_round, estimated_reward, self.pending_rewards_sol);
+                } else {
+                    info!("❌ Lost Round {} (cell didn't win)", deployed_round);
+                }
+            }
+        }
+
+        // Only checkpoint when we have >= 0.5 SOL pending
+        let min_checkpoint_threshold_sol = 0.5;
+
+        if self.pending_rewards_sol >= min_checkpoint_threshold_sol && !self.pending_checkpoint_rounds.is_empty() {
+            info!("🎫 Checkpointing {} winning rounds ({:.4} SOL pending >= {:.2} SOL threshold)",
+                  self.pending_checkpoint_rounds.len(), self.pending_rewards_sol, min_checkpoint_threshold_sol);
+
+            // Checkpoint all pending rounds
+            let rounds_to_checkpoint: Vec<u64> = self.pending_checkpoint_rounds.drain(..).collect();
+            for round_id in rounds_to_checkpoint {
+                if let Err(e) = self.execute_checkpoint(round_id).await {
+                    warn!("⚠️  Failed to checkpoint round {}: {}", round_id, e);
+                }
+                // Small delay between checkpoints to avoid rate limiting
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+
+            // Reset pending rewards after claiming
+            self.pending_rewards_sol = 0.0;
+            info!("✅ All pending rewards claimed!");
+        } else if self.pending_rewards_sol > 0.0 {
+            info!("💰 Pending rewards: {:.4} SOL (waiting for {:.2} SOL threshold)",
+                  self.pending_rewards_sol, min_checkpoint_threshold_sol);
+        }
+    }
+
+    /// Check if we won a specific round by querying Miner account for pending rewards
+    async fn check_if_won_round(&self, round_id: u64) -> bool {
+        // In ORE V2, the winning cell is determined by slot_hash (entropy)
+        // The winning cell index = slot_hash % 25
+        // We can calculate this by fetching the round's slot_hash after it ends
+
+        if let Some(ref rpc) = self.rpc_client {
+            // Fetch the completed round to get slot_hash
+            match rpc.fetch_round_with_winner(round_id).await {
+                Ok((_round_data, winning_cell)) => {
+                    // Check if any of our deployed cells match the winning cell
+                    for &cell_id in &self.last_round_cells {
+                        if cell_id == winning_cell {
+                            info!("🎯 Cell {} WON! (winning cell: {})", cell_id, winning_cell);
+                            return true;
+                        }
+                    }
+                    info!("📊 Round {} winning cell: {} (we had: {:?})",
+                          round_id, winning_cell, self.last_round_cells);
+                    false
+                }
+                Err(e) => {
+                    warn!("⚠️  Failed to fetch round {} winner: {}", round_id, e);
+                    false
+                }
+            }
+        } else {
+            false
         }
     }
 }

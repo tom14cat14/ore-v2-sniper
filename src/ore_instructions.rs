@@ -20,6 +20,7 @@ pub const BOARD: &[u8] = b"board";
 pub const MINER: &[u8] = b"miner";
 pub const ROUND: &[u8] = b"round";
 pub const AUTOMATION: &[u8] = b"automation";
+pub const ENTROPY_VAR: &[u8] = b"var"; // Entropy VAR seed for randomness
 
 // Instruction discriminators (from ore-api/src/instruction.rs)
 pub const DEPLOY_DISCRIMINATOR: u8 = 6;
@@ -57,7 +58,8 @@ impl CheckpointData {
 
 /// Build Deploy instruction to bet SOL on board squares
 ///
-/// Based on ore-api/src/sdk.rs lines 97-139
+/// Based on real successful ORE transactions analyzed from mainnet.
+/// Deploy instruction requires exactly 7 accounts, NOT 9.
 ///
 /// # Arguments
 /// * `signer` - Transaction signer (pays fees)
@@ -65,7 +67,6 @@ impl CheckpointData {
 /// * `amount` - Amount of SOL to deploy per square (in lamports)
 /// * `round_id` - Current round ID
 /// * `squares` - 25 bool array (true = deploy to this square)
-/// * `entropy_var` - Entropy VAR address (from Board account, not derived!)
 ///
 /// # Returns
 /// * Solana Instruction ready for bundle
@@ -75,7 +76,6 @@ pub fn build_deploy_instruction(
     amount: u64,
     round_id: u64,
     squares: [bool; 25],
-    entropy_var: Pubkey,
 ) -> Result<Instruction> {
     // Convert 25 bool array to 32-bit mask
     let mut mask: u32 = 0;
@@ -87,7 +87,6 @@ pub fn build_deploy_instruction(
 
     // Derive PDAs
     let ore_program_id = ORE_PROGRAM_ID.parse::<Pubkey>()?;
-    let entropy_program_id = ENTROPY_PROGRAM_ID.parse::<Pubkey>()?;
 
     let (automation_address, _) =
         Pubkey::find_program_address(&[AUTOMATION, &authority.to_bytes()], &ore_program_id);
@@ -97,29 +96,24 @@ pub fn build_deploy_instruction(
     let (round_address, _) =
         Pubkey::find_program_address(&[ROUND, &round_id.to_le_bytes()], &ore_program_id);
 
-    // CRITICAL FIX: Use entropy_var from Board account instead of deriving it!
-    // The Board account stores the current entropy VAR, which may rotate.
-    // entropy_var parameter is passed from Board WebSocket/RPC data.
-
     // Build instruction data
     let data = DeployData {
         amount: amount.to_le_bytes(),
         squares: mask.to_le_bytes(),
     };
 
-    // Build instruction
+    // Build instruction with 7 accounts (verified from successful mainnet txs)
+    // DO NOT add entropy_var or entropy_program - they cause InvalidAccountData!
     Ok(Instruction {
         program_id: ore_program_id,
         accounts: vec![
-            AccountMeta::new(signer, true),                       // Signer
-            AccountMeta::new(authority, false),                   // Authority
-            AccountMeta::new(automation_address, false),          // Automation (may be empty)
-            AccountMeta::new(board_address, false),               // Board
-            AccountMeta::new(miner_address, false),               // Miner
-            AccountMeta::new(round_address, false),               // Round
-            AccountMeta::new_readonly(system_program::ID, false), // System program
-            AccountMeta::new(entropy_var, false),                 // Entropy VAR (from Board!)
-            AccountMeta::new_readonly(entropy_program_id, false), // Entropy program
+            AccountMeta::new(signer, true),                       // [0] Signer
+            AccountMeta::new(authority, false),                   // [1] Authority
+            AccountMeta::new(automation_address, false),          // [2] Automation PDA
+            AccountMeta::new(board_address, false),               // [3] Board PDA
+            AccountMeta::new(miner_address, false),               // [4] Miner PDA
+            AccountMeta::new(round_address, false),               // [5] Round PDA
+            AccountMeta::new_readonly(system_program::ID, false), // [6] System program
         ],
         data: data.to_bytes(),
     })
@@ -190,6 +184,13 @@ pub fn get_round_address(round_id: u64) -> Result<Pubkey> {
     let (round, _) =
         Pubkey::find_program_address(&[ROUND, &round_id.to_le_bytes()], &ore_program_id);
     Ok(round)
+}
+
+/// Derive entropy VAR PDA for randomness (fixed address, doesn't change per round)
+pub fn get_entropy_var_address() -> Result<Pubkey> {
+    let entropy_program_id = ENTROPY_PROGRAM_ID.parse::<Pubkey>()?;
+    let (entropy_var, _) = Pubkey::find_program_address(&[ENTROPY_VAR], &entropy_program_id);
+    Ok(entropy_var)
 }
 
 #[cfg(test)]

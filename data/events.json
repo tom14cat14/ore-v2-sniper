@@ -2,703 +2,703 @@
   "events": [
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.545375722+00:00",
-      "cell_id": 23,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.535554157+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.452331270+00:00",
       "cell_id": 21,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.526107755+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.434390910+00:00",
       "cell_id": 20,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.519247947+00:00",
-      "cell_id": 19,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.511612551+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.415585745+00:00",
       "cell_id": 18,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.503796296+00:00",
-      "cell_id": 17,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.496961396+00:00",
-      "cell_id": 16,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.489089987+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.398305909+00:00",
       "cell_id": 15,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.482267882+00:00",
-      "cell_id": 13,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.472396594+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.379661984+00:00",
       "cell_id": 12,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.465570780+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.362234573+00:00",
       "cell_id": 10,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.458748555+00:00",
-      "cell_id": 7,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.450600259+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.343931355+00:00",
       "cell_id": 6,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.442774096+00:00",
-      "cell_id": 5,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.434898209+00:00",
+      "slot": 383582932,
+      "timestamp": "2025-11-30T17:55:13.325062501+00:00",
       "cell_id": 4,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
+      "authority": "9FsGp26UkKndmewwV5sNTPXfBoNP1BxywifBrpWrxpVP"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.426054272+00:00",
-      "cell_id": 3,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.420648273+00:00",
-      "cell_id": 2,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.413824255+00:00",
-      "cell_id": 1,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064262,
-      "timestamp": "2025-11-19T07:29:28.403857208+00:00",
-      "cell_id": 0,
-      "authority": "8GyBA6441yoFoFGAxTVEPCBPv1PUhNCjzGbDVsKk6dPC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.264512027+00:00",
-      "cell_id": 17,
-      "authority": "Fy6fhSMSgEAYUrajamoFYUgtAHbbzhaWu38ryrMH5Kqo"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.244875309+00:00",
-      "cell_id": 24,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.235642536+00:00",
-      "cell_id": 23,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.224761480+00:00",
-      "cell_id": 22,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.217903066+00:00",
+      "slot": 383582930,
+      "timestamp": "2025-11-30T17:55:12.771809807+00:00",
       "cell_id": 21,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.210091840+00:00",
-      "cell_id": 20,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.203231373+00:00",
-      "cell_id": 19,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.195410690+00:00",
+      "slot": 383582930,
+      "timestamp": "2025-11-30T17:55:12.753757529+00:00",
       "cell_id": 18,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.191643656+00:00",
-      "cell_id": 17,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "slot": 383582930,
+      "timestamp": "2025-11-30T17:55:12.735359735+00:00",
+      "cell_id": 6,
+      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.180771297+00:00",
-      "cell_id": 16,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.173910608+00:00",
-      "cell_id": 15,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.167037506+00:00",
-      "cell_id": 14,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.159890533+00:00",
-      "cell_id": 13,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.149005099+00:00",
+      "slot": 383582930,
+      "timestamp": "2025-11-30T17:55:12.717365735+00:00",
       "cell_id": 12,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.140909642+00:00",
-      "cell_id": 11,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.133051839+00:00",
+      "slot": 383582930,
+      "timestamp": "2025-11-30T17:55:12.699154359+00:00",
       "cell_id": 10,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.125166975+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.254726443+00:00",
+      "cell_id": 24,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.236482445+00:00",
+      "cell_id": 22,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.218264598+00:00",
+      "cell_id": 21,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.200789787+00:00",
+      "cell_id": 20,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.181219353+00:00",
+      "cell_id": 19,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.146837102+00:00",
+      "cell_id": 18,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.129494989+00:00",
+      "cell_id": 17,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.110811862+00:00",
+      "cell_id": 16,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.093038744+00:00",
+      "cell_id": 15,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.073467058+00:00",
+      "cell_id": 14,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.052902036+00:00",
+      "cell_id": 13,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.034246418+00:00",
+      "cell_id": 12,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:11.015622062+00:00",
+      "cell_id": 10,
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.998472849+00:00",
       "cell_id": 9,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.118289086+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.979354379+00:00",
       "cell_id": 8,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.111443366+00:00",
-      "cell_id": 7,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.103540469+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.961962454+00:00",
       "cell_id": 6,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.095700759+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.942644029+00:00",
       "cell_id": 5,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.088785219+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.925017376+00:00",
       "cell_id": 4,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.080871441+00:00",
-      "cell_id": 3,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.072982100+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.906276350+00:00",
       "cell_id": 2,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.064100814+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.888927054+00:00",
       "cell_id": 1,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064261,
-      "timestamp": "2025-11-19T07:29:28.055818417+00:00",
+      "slot": 383582925,
+      "timestamp": "2025-11-30T17:55:10.869738894+00:00",
       "cell_id": 0,
-      "authority": "ERpXMCReR2XrqCoxQLSde1qDpxgBNwLZ3L18hKahCQg6"
+      "authority": "1upqke93NN7pZKXqNxfEVaGMbBJzjqoMSwBpMvZHN3s"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.889827563+00:00",
-      "cell_id": 19,
-      "authority": "VRooMLpTnpdoeYNccpw7Qk2bDRPXhmYfSVBVxeKevsC"
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.706010713+00:00",
+      "cell_id": 0,
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.881999877+00:00",
-      "cell_id": 23,
-      "authority": "VRooMLpTnpdoeYNccpw7Qk2bDRPXhmYfSVBVxeKevsC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.875191957+00:00",
-      "cell_id": 17,
-      "authority": "VRooMLpTnpdoeYNccpw7Qk2bDRPXhmYfSVBVxeKevsC"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.868369190+00:00",
-      "cell_id": 17,
-      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.864561970+00:00",
-      "cell_id": 23,
-      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.854685153+00:00",
-      "cell_id": 19,
-      "authority": "BLtmAKRSjTUt9J8NgXwjtZNKJEWsokeMhpXq3TYCTJyK"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.824983636+00:00",
-      "cell_id": 23,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.814173273+00:00",
-      "cell_id": 21,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.807360093+00:00",
-      "cell_id": 20,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.799574405+00:00",
-      "cell_id": 19,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.790715511+00:00",
-      "cell_id": 17,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.786546726+00:00",
-      "cell_id": 16,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.778713380+00:00",
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.688179768+00:00",
       "cell_id": 12,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.769841150+00:00",
-      "cell_id": 7,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.670274293+00:00",
+      "cell_id": 2,
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.760996471+00:00",
-      "cell_id": 5,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.652388926+00:00",
+      "cell_id": 4,
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064260,
-      "timestamp": "2025-11-19T07:29:27.751071313+00:00",
-      "cell_id": 3,
-      "authority": "GGgPpJrDvCxBhk6bUe9WJVdqK1i41QDGJ2tPg1PgEAoD"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.595122347+00:00",
-      "cell_id": 24,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.587302915+00:00",
-      "cell_id": 22,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.583488924+00:00",
-      "cell_id": 14,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.572702074+00:00",
-      "cell_id": 10,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.565915364+00:00",
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.634804262+00:00",
       "cell_id": 9,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.559103057+00:00",
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.616626498+00:00",
       "cell_id": 6,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.552268307+00:00",
-      "cell_id": 4,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.543409643+00:00",
-      "cell_id": 2,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.536380760+00:00",
-      "cell_id": 1,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.524434854+00:00",
-      "cell_id": 0,
-      "authority": "CPbStwwsyZAUsdWEybFYFf1baA4C1weuo8dvzSnxMMs8"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.470672036+00:00",
-      "cell_id": 23,
-      "authority": "BBf9bcLCGs9ERKA5T1BvRceXiJoWDyWs5A4AFZgCt5gS"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.463799175+00:00",
-      "cell_id": 19,
-      "authority": "BBf9bcLCGs9ERKA5T1BvRceXiJoWDyWs5A4AFZgCt5gS"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.452770614+00:00",
-      "cell_id": 17,
-      "authority": "BBf9bcLCGs9ERKA5T1BvRceXiJoWDyWs5A4AFZgCt5gS"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064259,
-      "timestamp": "2025-11-19T07:29:27.409293018+00:00",
-      "cell_id": 23,
-      "authority": "DyE2ZW9aL3Gj57o7WEFJJMPg7U4PBJJo9jFAQxbaMcFy"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.267766949+00:00",
-      "cell_id": 23,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.260541139+00:00",
-      "cell_id": 21,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.248708855+00:00",
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.599490230+00:00",
       "cell_id": 20,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.241249497+00:00",
-      "cell_id": 19,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.230322295+00:00",
-      "cell_id": 18,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.219444315+00:00",
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.581390081+00:00",
       "cell_id": 17,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.211569580+00:00",
-      "cell_id": 16,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.204753084+00:00",
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.563918076+00:00",
       "cell_id": 15,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.197887527+00:00",
-      "cell_id": 13,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.545314768+00:00",
+      "cell_id": 16,
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.189011210+00:00",
-      "cell_id": 12,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.515672531+00:00",
+      "cell_id": 18,
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.181460572+00:00",
-      "cell_id": 7,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.172582241+00:00",
-      "cell_id": 5,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.165203475+00:00",
-      "cell_id": 3,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.155154544+00:00",
-      "cell_id": 2,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064258,
-      "timestamp": "2025-11-19T07:29:27.147262198+00:00",
-      "cell_id": 0,
-      "authority": "aJedoVSoSgh2Zja8JhTKSJ73Gy5rP4SeUAbxZAYKRAg"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:27.015705770+00:00",
-      "cell_id": 22,
-      "authority": "D17tfo8VTwgj9aKyNUgSV6Kbfw45DSCVmW1URhmpm1Z4"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:27.008859890+00:00",
-      "cell_id": 14,
-      "authority": "D17tfo8VTwgj9aKyNUgSV6Kbfw45DSCVmW1URhmpm1Z4"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:27.001057650+00:00",
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.498237193+00:00",
       "cell_id": 10,
-      "authority": "D17tfo8VTwgj9aKyNUgSV6Kbfw45DSCVmW1URhmpm1Z4"
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:26.991254+00:00",
-      "cell_id": 4,
-      "authority": "D17tfo8VTwgj9aKyNUgSV6Kbfw45DSCVmW1URhmpm1Z4"
+      "slot": 383582924,
+      "timestamp": "2025-11-30T17:55:10.478817271+00:00",
+      "cell_id": 21,
+      "authority": "JEHfFn7sQsS4c4kebiTLteBezhY6E9DRM1LhJhTwmWq6"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:26.984489631+00:00",
-      "cell_id": 2,
-      "authority": "D17tfo8VTwgj9aKyNUgSV6Kbfw45DSCVmW1URhmpm1Z4"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:26.976644342+00:00",
-      "cell_id": 1,
-      "authority": "D17tfo8VTwgj9aKyNUgSV6Kbfw45DSCVmW1URhmpm1Z4"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:26.968727349+00:00",
-      "cell_id": 0,
-      "authority": "D17tfo8VTwgj9aKyNUgSV6Kbfw45DSCVmW1URhmpm1Z4"
-    },
-    {
-      "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:26.947507852+00:00",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.968999958+00:00",
       "cell_id": 24,
-      "authority": "9GiXzbNPK7G8ZgS6Qmk5avyqnrsbGJmweFeUmK4g86Xv"
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:26.936644609+00:00",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.951020846+00:00",
+      "cell_id": 23,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.933650090+00:00",
       "cell_id": 22,
-      "authority": "9GiXzbNPK7G8ZgS6Qmk5avyqnrsbGJmweFeUmK4g86Xv"
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
     },
     {
       "type": "CellDeployed",
-      "slot": 381064257,
-      "timestamp": "2025-11-19T07:29:26.932895069+00:00",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.915334499+00:00",
+      "cell_id": 21,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.898118042+00:00",
       "cell_id": 20,
-      "authority": "9GiXzbNPK7G8ZgS6Qmk5avyqnrsbGJmweFeUmK4g86Xv"
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.879409066+00:00",
+      "cell_id": 19,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.862078395+00:00",
+      "cell_id": 18,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.843866287+00:00",
+      "cell_id": 17,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.826259580+00:00",
+      "cell_id": 16,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.808044678+00:00",
+      "cell_id": 15,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.790037353+00:00",
+      "cell_id": 14,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.771749915+00:00",
+      "cell_id": 13,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.753756436+00:00",
+      "cell_id": 12,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.736051455+00:00",
+      "cell_id": 11,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.718023672+00:00",
+      "cell_id": 10,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.700306389+00:00",
+      "cell_id": 9,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.681847180+00:00",
+      "cell_id": 8,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.664527710+00:00",
+      "cell_id": 7,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.646571279+00:00",
+      "cell_id": 6,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.629196306+00:00",
+      "cell_id": 5,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.610751203+00:00",
+      "cell_id": 4,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.593191484+00:00",
+      "cell_id": 3,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.574621899+00:00",
+      "cell_id": 2,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.556808135+00:00",
+      "cell_id": 1,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.538098499+00:00",
+      "cell_id": 0,
+      "authority": "5oVgp3QRmf5eYHBEUmTUu9Zr2m5P6CDYF8hNY9oEC7bu"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.496960989+00:00",
+      "cell_id": 24,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.478468920+00:00",
+      "cell_id": 23,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.461056857+00:00",
+      "cell_id": 22,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.442701071+00:00",
+      "cell_id": 21,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.425009826+00:00",
+      "cell_id": 20,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.406825791+00:00",
+      "cell_id": 19,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.388821432+00:00",
+      "cell_id": 18,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.370554892+00:00",
+      "cell_id": 17,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.352538260+00:00",
+      "cell_id": 16,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.334930502+00:00",
+      "cell_id": 15,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.316289002+00:00",
+      "cell_id": 14,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.299069167+00:00",
+      "cell_id": 13,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.280705006+00:00",
+      "cell_id": 12,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.263039651+00:00",
+      "cell_id": 11,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.244219848+00:00",
+      "cell_id": 10,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.226578756+00:00",
+      "cell_id": 9,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.208270339+00:00",
+      "cell_id": 8,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.190584364+00:00",
+      "cell_id": 7,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.172151504+00:00",
+      "cell_id": 6,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.153977588+00:00",
+      "cell_id": 5,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.135988327+00:00",
+      "cell_id": 4,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.117812597+00:00",
+      "cell_id": 3,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.099074808+00:00",
+      "cell_id": 2,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.078084371+00:00",
+      "cell_id": 1,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582921,
+      "timestamp": "2025-11-30T17:55:09.058921378+00:00",
+      "cell_id": 0,
+      "authority": "FRCjjdzLr6ZmK84K2aKk9Yxw8ysG8JamWzenPtepFxGZ"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582916,
+      "timestamp": "2025-11-30T17:55:08.554948702+00:00",
+      "cell_id": 23,
+      "authority": "7zosFr7Krf7uGcW5RJ8RDquaBEaYW9JyGkfcCeV6P7oK"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582916,
+      "timestamp": "2025-11-30T17:55:08.536421346+00:00",
+      "cell_id": 21,
+      "authority": "7zosFr7Krf7uGcW5RJ8RDquaBEaYW9JyGkfcCeV6P7oK"
+    },
+    {
+      "type": "CellDeployed",
+      "slot": 383582916,
+      "timestamp": "2025-11-30T17:55:08.517990300+00:00",
+      "cell_id": 20,
+      "authority": "7zosFr7Krf7uGcW5RJ8RDquaBEaYW9JyGkfcCeV6P7oK"
     }
   ],
   "count": 100

@@ -203,11 +203,11 @@ RPC (ERPC) ──────────► Transactions (~50ms)
 ## 📝 Current Configuration (.env)
 
 ```bash
-# RPC (ERPC)
-RPC_URL=https://edge.erpc.global?api-key=507c3fff-6dc7-4d6d-8915-596be560814f
+# RPC (ERPC) - Set in .env, DO NOT hardcode
+RPC_URL=https://edge.erpc.global?api-key=<YOUR_ERPC_API_KEY>
 
-# WebSocket (Helius)
-WS_URL=wss://mainnet.helius-rpc.com/?api-key=9caf3cf6-80bf-4f7a-8544-3ece7fb8f413
+# WebSocket (Helius) - Set in .env, DO NOT hardcode
+WS_URL=wss://mainnet.helius-rpc.com/?api-key=<YOUR_HELIUS_API_KEY>
 
 # ShredStream (ERPC)
 SHREDSTREAM_ENDPOINT=https://shreds-ny6-1.erpc.global
