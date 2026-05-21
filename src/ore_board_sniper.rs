@@ -100,21 +100,21 @@ pub struct OreBoardSniper {
 #[derive(Debug, Clone, Default)]
 pub struct SnipeStats {
     // Round-level metrics
-    pub rounds_played: u64,       // Total rounds participated in
-    pub rounds_won: u64,          // Rounds where we won more than we spent
-    pub rounds_lost: u64,         // Rounds where we lost or broke even
+    pub rounds_played: u64, // Total rounds participated in
+    pub rounds_won: u64,    // Rounds where we won more than we spent
+    pub rounds_lost: u64,   // Rounds where we lost or broke even
 
     // Pick-level metrics (can make multiple picks per round)
-    pub picks_made: u64,          // Total cells deployed to across all rounds
-    pub picks_won: u64,           // Total cells that were winning cells
+    pub picks_made: u64, // Total cells deployed to across all rounds
+    pub picks_won: u64,  // Total cells that were winning cells
 
     // Financial metrics
-    pub total_spent_sol: f64,     // Total SOL spent on deployments
-    pub total_earned_sol: f64,    // Total SOL won from claims
-    pub total_tips_paid: f64,     // Total Jito tips paid
-    pub total_claims: u64,        // Number of successful claims
-    pub starting_balance: f64,    // Starting wallet balance
-    pub last_balance_check: f64,  // Last known wallet balance
+    pub total_spent_sol: f64,    // Total SOL spent on deployments
+    pub total_earned_sol: f64,   // Total SOL won from claims
+    pub total_tips_paid: f64,    // Total Jito tips paid
+    pub total_claims: u64,       // Number of successful claims
+    pub starting_balance: f64,   // Starting wallet balance
+    pub last_balance_check: f64, // Last known wallet balance
 }
 
 impl OreBoardSniper {
@@ -278,7 +278,10 @@ impl OreBoardSniper {
                 info!("🎲 Entropy VAR derived: {}", entropy_var);
             }
             Err(e) => {
-                warn!("⚠️  Failed to derive entropy_var: {} - deploys will fail!", e);
+                warn!(
+                    "⚠️  Failed to derive entropy_var: {} - deploys will fail!",
+                    e
+                );
             }
         }
 
@@ -345,7 +348,8 @@ impl OreBoardSniper {
                         // Checkpoint previous round if we deployed to it
                         // This claims any rewards we won
                         if old_round_id > 0 {
-                            self.check_and_checkpoint_previous_rounds(board_update.round_id).await;
+                            self.check_and_checkpoint_previous_rounds(board_update.round_id)
+                                .await;
                         }
 
                         // Spawn new Round subscriber for new round
@@ -506,7 +510,7 @@ impl OreBoardSniper {
             }
 
             // Only act in snipe window (normal mode)
-            let snipe_window_secs = self.config.snipe_window_seconds as f64;
+            let snipe_window_secs = self.config.snipe_window_seconds;
             if !self.config.force_test_mode && time_left > snipe_window_secs {
                 // Event-driven: just continue to next ShredStream event, no polling sleep
                 continue;
@@ -681,7 +685,10 @@ impl OreBoardSniper {
                             info!("💰 ORE price updated for new round: {:.8} SOL", price_sol);
                         }
                         Err(e) => {
-                            warn!("⚠️  Failed to fetch ORE price for new round, using cached: {}", e);
+                            warn!(
+                                "⚠️  Failed to fetch ORE price for new round, using cached: {}",
+                                e
+                            );
                             // Keep existing price in board
                         }
                     }
@@ -986,7 +993,10 @@ impl OreBoardSniper {
                 total_needed, total_cost, wallet_balance
             ));
         }
-        info!("✅ Balance check passed: {:.6} SOL available", wallet_balance);
+        info!(
+            "✅ Balance check passed: {:.6} SOL available",
+            wallet_balance
+        );
 
         // Get current round ID from Board account (NOT calculated from slot!)
         // CRITICAL FIX: round_id must match the Board account, not be calculated
@@ -1007,7 +1017,10 @@ impl OreBoardSniper {
             ));
         }
 
-        info!("✅ Board state validated: round_id={}, entropy_var={}", round_id, board.entropy_var);
+        info!(
+            "✅ Board state validated: round_id={}, entropy_var={}",
+            round_id, board.entropy_var
+        );
 
         // Build squares array with ALL selected cells set to true
         let mut squares = [false; 25];
@@ -1026,7 +1039,7 @@ impl OreBoardSniper {
             authority,
             total_amount, // Total amount for all cells
             round_id,
-            squares,      // Multiple cells set to true
+            squares, // Multiple cells set to true
         )?;
 
         info!(
@@ -1069,13 +1082,21 @@ impl OreBoardSniper {
                 if let Some(err) = sim_result.value.err {
                     // Simulation failed - check if it's a "miner account doesn't exist" error
                     let err_str = format!("{:?}", err);
-                    if err_str.contains("AccountNotFound") || err_str.contains("custom program error: 0x") {
+                    if err_str.contains("AccountNotFound")
+                        || err_str.contains("custom program error: 0x")
+                    {
                         // This is expected for first-time deploys - miner account will be created
-                        info!("⚠️  Simulation failed (expected for first deploy): {:?}", err);
+                        info!(
+                            "⚠️  Simulation failed (expected for first deploy): {:?}",
+                            err
+                        );
                         info!("   Proceeding anyway - account will be created on-chain");
                     } else {
                         // Unexpected error - skip this round but don't crash
-                        warn!("⚠️  Transaction simulation failed: {:?}. Skipping this round.", err);
+                        warn!(
+                            "⚠️  Transaction simulation failed: {:?}. Skipping this round.",
+                            err
+                        );
                         return Ok(()); // Continue to next round instead of crashing
                     }
                 } else {
@@ -1089,7 +1110,10 @@ impl OreBoardSniper {
             }
             Err(e) => {
                 // RPC error during simulation - proceed with caution
-                warn!("⚠️  Simulation RPC error: {}. Proceeding with transaction...", e);
+                warn!(
+                    "⚠️  Simulation RPC error: {}. Proceeding with transaction...",
+                    e
+                );
             }
         }
 
@@ -1566,8 +1590,10 @@ impl OreBoardSniper {
                         // Our share = (our deployment / total deployed on cell) * (pot / num_winning_cells)
                         // Note: In ORE V2, typically only ONE cell wins, but we account for edge cases
                         if cell.deployed_lamports > 0 {
-                            let our_deployment_lamports = (self.config.deployment_per_cell_sol * 1e9) as u64;
-                            let our_share = our_deployment_lamports as f64 / cell.deployed_lamports as f64;
+                            let our_deployment_lamports =
+                                (self.config.deployment_per_cell_sol * 1e9) as u64;
+                            let our_share =
+                                our_deployment_lamports as f64 / cell.deployed_lamports as f64;
 
                             // Estimate payout (pot split among winning cell deployers)
                             // This is simplified - actual payout depends on ORE protocol specifics
@@ -1627,9 +1653,10 @@ impl OreBoardSniper {
     /// Execute checkpoint to claim rewards for a round we participated in
     /// Should be called after round ends to collect any winnings
     pub async fn execute_checkpoint(&self, round_id: u64) -> Result<()> {
-        let wallet = self.wallet.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("No wallet loaded - cannot execute checkpoint")
-        })?;
+        let wallet = self
+            .wallet
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No wallet loaded - cannot execute checkpoint"))?;
 
         let authority = wallet.pubkey();
 
@@ -1637,7 +1664,10 @@ impl OreBoardSniper {
         let board_address = crate::ore_instructions::get_board_address()?;
         let miner_address = crate::ore_instructions::get_miner_address(authority)?;
 
-        info!("🎫 Executing checkpoint for round {} to claim rewards", round_id);
+        info!(
+            "🎫 Executing checkpoint for round {} to claim rewards",
+            round_id
+        );
 
         // Build checkpoint instruction
         let checkpoint_ix = crate::ore_instructions::build_checkpoint_instruction(
@@ -1670,14 +1700,20 @@ impl OreBoardSniper {
 
         match rpc.send_transaction_with_config(&tx, config) {
             Ok(signature) => {
-                info!("✅ Checkpoint submitted: {} for round {}", signature, round_id);
+                info!(
+                    "✅ Checkpoint submitted: {} for round {}",
+                    signature, round_id
+                );
                 Ok(())
             }
             Err(e) => {
                 // Check if error is "already checkpointed" which is fine
                 let err_str = e.to_string();
                 if err_str.contains("already") || err_str.contains("Checkpoint") {
-                    info!("ℹ️  Round {} already checkpointed (by us or someone else)", round_id);
+                    info!(
+                        "ℹ️  Round {} already checkpointed (by us or someone else)",
+                        round_id
+                    );
                     Ok(())
                 } else {
                     warn!("⚠️  Checkpoint failed for round {}: {}", round_id, e);
@@ -1712,8 +1748,10 @@ impl OreBoardSniper {
                     self.pending_rewards_sol += estimated_reward;
                     self.pending_checkpoint_rounds.push(deployed_round);
 
-                    info!("🎉 WON Round {}! Estimated reward: {:.4} SOL | Total pending: {:.4} SOL",
-                          deployed_round, estimated_reward, self.pending_rewards_sol);
+                    info!(
+                        "🎉 WON Round {}! Estimated reward: {:.4} SOL | Total pending: {:.4} SOL",
+                        deployed_round, estimated_reward, self.pending_rewards_sol
+                    );
                 } else {
                     info!("❌ Lost Round {} (cell didn't win)", deployed_round);
                 }
@@ -1723,9 +1761,15 @@ impl OreBoardSniper {
         // Only checkpoint when we have >= 0.5 SOL pending
         let min_checkpoint_threshold_sol = 0.5;
 
-        if self.pending_rewards_sol >= min_checkpoint_threshold_sol && !self.pending_checkpoint_rounds.is_empty() {
-            info!("🎫 Checkpointing {} winning rounds ({:.4} SOL pending >= {:.2} SOL threshold)",
-                  self.pending_checkpoint_rounds.len(), self.pending_rewards_sol, min_checkpoint_threshold_sol);
+        if self.pending_rewards_sol >= min_checkpoint_threshold_sol
+            && !self.pending_checkpoint_rounds.is_empty()
+        {
+            info!(
+                "🎫 Checkpointing {} winning rounds ({:.4} SOL pending >= {:.2} SOL threshold)",
+                self.pending_checkpoint_rounds.len(),
+                self.pending_rewards_sol,
+                min_checkpoint_threshold_sol
+            );
 
             // Checkpoint all pending rounds
             let rounds_to_checkpoint: Vec<u64> = self.pending_checkpoint_rounds.drain(..).collect();
@@ -1741,8 +1785,10 @@ impl OreBoardSniper {
             self.pending_rewards_sol = 0.0;
             info!("✅ All pending rewards claimed!");
         } else if self.pending_rewards_sol > 0.0 {
-            info!("💰 Pending rewards: {:.4} SOL (waiting for {:.2} SOL threshold)",
-                  self.pending_rewards_sol, min_checkpoint_threshold_sol);
+            info!(
+                "💰 Pending rewards: {:.4} SOL (waiting for {:.2} SOL threshold)",
+                self.pending_rewards_sol, min_checkpoint_threshold_sol
+            );
         }
     }
 
@@ -1763,8 +1809,10 @@ impl OreBoardSniper {
                             return true;
                         }
                     }
-                    info!("📊 Round {} winning cell: {} (we had: {:?})",
-                          round_id, winning_cell, self.last_round_cells);
+                    info!(
+                        "📊 Round {} winning cell: {} (we had: {:?})",
+                        round_id, winning_cell, self.last_round_cells
+                    );
                     false
                 }
                 Err(e) => {
@@ -1786,8 +1834,8 @@ async fn fetch_blockhash_from_shredstream() -> Result<solana_sdk::hash::Hash> {
     use solana_client::rpc_client::RpcClient;
     use std::env;
 
-    let rpc_url = env::var("RPC_URL")
-        .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
+    let rpc_url =
+        env::var("RPC_URL").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
 
     let rpc = RpcClient::new(rpc_url);
     rpc.get_latest_blockhash()
