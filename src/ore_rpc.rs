@@ -246,13 +246,16 @@ impl OreRpcClient {
             id, winning_cell, slot_hash[0], winning_cell
         );
 
-        Ok((RoundAccount {
-            id,
-            deployed,
-            count,
-            total_deployed,
-            total_winnings,
-        }, winning_cell))
+        Ok((
+            RoundAccount {
+                id,
+                deployed,
+                count,
+                total_deployed,
+                total_winnings,
+            },
+            winning_cell,
+        ))
     }
 
     /// Fetch current treasury state from RPC
